@@ -1,6 +1,7 @@
 pub mod r#box;
 pub mod camera;
 pub mod property;
+pub mod transition;
 
 #[doc(hidden)]
 pub mod prelude {
@@ -14,6 +15,7 @@ pub mod prelude {
 use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 
 use r#box::UiBoxPlugin;
+use transition::UiTransitionPlugin;
 
 use crate::camera::UiCameraPlugin;
 
@@ -24,6 +26,7 @@ impl Plugin for UiPlugin {
         app.add_system(redraw.on_startup())
             .add_plugin(UiCameraPlugin)
             .add_plugin(UiBoxPlugin)
+            .add_plugin(UiTransitionPlugin)
             .insert_resource(WinitSettings::desktop_app());
     }
 }

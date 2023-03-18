@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::{
     prelude::{App, Color, Commands, IntoSystemAppConfig},
     DefaultPlugins,
@@ -7,7 +9,7 @@ use epui::{
     camera::UiCameraBundle,
     property::{ColoredElement, CornersRoundness, Position, Size},
     r#box::UiBoxBundle,
-    UiPlugin,
+    UiPlugin, transition::Transition,
 };
 
 fn main() {
@@ -34,7 +36,11 @@ fn setup(mut commands: Commands) {
                     )),
                     ..Default::default()
                 },
-                CornersRoundness::from_scalar(0.5f32),
+                CornersRoundness::from_scalar(0.0f32),
+                Transition::new(
+                    CornersRoundness::from_scalar(0.5f32), 
+                    Duration::from_millis(1000)
+                )
             ));
         }
     }
