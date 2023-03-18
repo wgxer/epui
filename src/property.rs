@@ -17,6 +17,18 @@ impl Position {
     }
 }
 
+impl From<Position> for Vec2 {
+    fn from(position: Position) -> Self {
+        Vec2::new(position.x as f32, position.y as f32)
+    }
+}
+
+impl From<Vec2> for Position {
+    fn from(position: Vec2) -> Self {
+        Position::new(position.x as u32, position.y as u32)
+    }
+}
+
 #[derive(Component, Debug, Clone, Hash, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Size {
@@ -40,6 +52,12 @@ impl Default for Size {
 impl From<Size> for Vec2 {
     fn from(size: Size) -> Self {
         Vec2::new(size.width as f32, size.height as f32)
+    }
+}
+
+impl From<Vec2> for Size {
+    fn from(size: Vec2) -> Self {
+        Size::new(size.x as u32, size.y as u32)
     }
 }
 
@@ -84,5 +102,16 @@ impl From<CornersRoundness> for Vec4 {
             corners_roundness.bottom_left_scalar,
             corners_roundness.bottom_right_scalar,
         )
+    }
+}
+
+impl From<Vec4> for CornersRoundness {
+    fn from(corners_roundness: Vec4) -> Self {
+        CornersRoundness {
+            top_left_scalar: corners_roundness.x, 
+            top_right_scalar: corners_roundness.y, 
+            bottom_left_scalar: corners_roundness.z, 
+            bottom_right_scalar: corners_roundness.w
+        }
     }
 }
