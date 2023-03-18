@@ -1,0 +1,28 @@
+[package]
+name = "epui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies.bevy]
+version = "0.10"
+default-features = false
+features = [
+    "bevy_winit", 
+    "x11", 
+    "wayland", 
+    "bevy_render", 
+    "bevy_asset", 
+    "bevy_core_pipeline"
+]
+
+[dependencies]
+bytemuck = "1.13.1"
+bytemuck_derive = "1.4.0" # Used to implement Zeroable/Pod traits
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
