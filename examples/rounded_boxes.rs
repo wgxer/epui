@@ -5,12 +5,7 @@ use bevy::{
     DefaultPlugins,
 };
 
-use epui::{
-    camera::UiCameraBundle,
-    property::{ColoredElement, CornersRoundness, Position, Size},
-    r#box::UiBoxBundle,
-    UiPlugin, transition::Transition,
-};
+use epui::prelude::*;
 
 fn main() {
     App::new()

@@ -1,3 +1,12 @@
+pub mod transition;
+
+#[doc(hidden)]
+pub mod prelude {
+    pub use crate::property::{
+        transition::Transition, ColoredElement, CornersRoundness, Position, Size,
+    };
+}
+
 use bevy::{
     prelude::{Color, Component, ReflectComponent, Vec2, Vec4},
     reflect::Reflect,
@@ -108,10 +117,10 @@ impl From<CornersRoundness> for Vec4 {
 impl From<Vec4> for CornersRoundness {
     fn from(corners_roundness: Vec4) -> Self {
         CornersRoundness {
-            top_left_scalar: corners_roundness.x, 
-            top_right_scalar: corners_roundness.y, 
-            bottom_left_scalar: corners_roundness.z, 
-            bottom_right_scalar: corners_roundness.w
+            top_left_scalar: corners_roundness.x,
+            top_right_scalar: corners_roundness.y,
+            bottom_left_scalar: corners_roundness.z,
+            bottom_right_scalar: corners_roundness.w,
         }
     }
 }

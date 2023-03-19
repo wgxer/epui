@@ -1,21 +1,20 @@
-pub mod r#box;
 pub mod camera;
+pub mod element;
 pub mod property;
-pub mod transition;
 
 #[doc(hidden)]
 pub mod prelude {
-    pub use crate::UiPlugin;
     pub use crate::camera::{UiCamera, UiCameraBundle};
+    pub use crate::UiPlugin;
 
-    pub use crate::property::*;
-    pub use crate::r#box::{UiBox, UiBoxBundle};
+    pub use crate::element::prelude::*;
+    pub use crate::property::prelude::*;
 }
 
 use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 
-use r#box::UiBoxPlugin;
-use transition::UiTransitionPlugin;
+use element::r#box::UiBoxPlugin;
+use property::transition::UiTransitionPlugin;
 
 use crate::camera::UiCameraPlugin;
 

@@ -21,15 +21,14 @@ use bevy::{
         Extract, ExtractSchedule, RenderApp, RenderSet,
     },
 };
-use bytemuck_derive::{Zeroable, Pod};
+use bytemuck_derive::{Pod, Zeroable};
 
 use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     property::{ColoredElement, CornersRoundness, Position, Size},
-    r#box,
 };
 
-pub struct UiBoxPlugin;
+pub(crate) struct UiBoxPlugin;
 
 impl Plugin for UiBoxPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
@@ -41,12 +40,12 @@ impl Plugin for UiBoxPlugin {
         };
 
         render_app
-            .insert_resource(r#box::BoxShader(Handle::weak(shader_handle)))
-            .init_resource::<r#box::BoxPipeline>()
-            .init_resource::<r#box::BoxBuffers>()
+            .insert_resource(BoxShader(Handle::weak(shader_handle)))
+            .init_resource::<BoxPipeline>()
+            .init_resource::<BoxBuffers>()
             .add_render_command::<UiPhaseItem, RenderBoxCommand>()
-            .add_system(r#box::extract_boxes.in_schedule(ExtractSchedule))
-            .add_system(r#box::queue_boxes.in_set(RenderSet::Queue));
+            .add_system(extract_boxes.in_schedule(ExtractSchedule))
+            .add_system(queue_boxes.in_set(RenderSet::Queue));
     }
 }
 
