@@ -33,9 +33,9 @@ fn setup(mut commands: Commands) {
                 },
                 CornersRoundness::from_scalar(0.0f32),
                 Transition::new(
-                    CornersRoundness::from_scalar(0.5f32), 
-                    Duration::from_millis(1000)
-                )
+                    CornersRoundness::from_scalar(0.5f32),
+                    Duration::from_millis(1000),
+                ),
             ));
         }
     }
