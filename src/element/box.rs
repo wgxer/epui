@@ -25,7 +25,8 @@ use bytemuck_derive::{Pod, Zeroable};
 
 use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
-    property::{ColoredElement, CornersRoundness, Position, Size},
+    prelude::AutoZUpdate,
+    property::{ColoredElement, CornersRoundness, Position, Size, ZLevel},
 };
 
 pub(crate) struct UiBoxPlugin;
@@ -58,6 +59,8 @@ pub struct UiBoxBundle {
     pub position: Position,
     pub size: Size,
     pub color: ColoredElement,
+    pub z_level: ZLevel,
+    pub auto_z_update: AutoZUpdate,
 }
 
 #[derive(Resource, Default)]
@@ -129,12 +132,13 @@ fn extract_boxes(
                 &Size,
                 &ColoredElement,
                 Option<&CornersRoundness>,
+                Option<&ZLevel>,
             ),
             With<UiBox>,
         >,
     >,
 ) {
-    for (entity, position, size, colored_element, corners_roundness) in boxes.iter() {
+    for (entity, position, size, colored_element, corners_roundness, z_level) in boxes.iter() {
         let mut entity_commands = commands.get_or_spawn(entity);
 
         entity_commands.insert((
@@ -142,6 +146,7 @@ fn extract_boxes(
             position.clone(),
             size.clone(),
             colored_element.clone(),
+            z_level.cloned().unwrap_or_default(),
         ));
 
         if let Some(corners_roundness) = corners_roundness {
@@ -160,6 +165,7 @@ fn queue_boxes(
         (
             Entity,
             &Position,
+            &ZLevel,
             &Size,
             &ColoredElement,
             Option<&CornersRoundness>,
@@ -261,7 +267,9 @@ fn queue_boxes(
         let mut instance = 0;
         box_buffers.instances.clear();
 
-        for (box_entity, position, size, colored_element, corners_roundness) in boxes.iter() {
+        for (box_entity, position, z_level, size, colored_element, corners_roundness) in
+            boxes.iter()
+        {
             let left_top_corner = Vec2::new(
                 (x_pixel_unit * position.x as f32) - 1.0,
                 1.0 - (y_pixel_unit * position.y as f32),
@@ -304,7 +312,7 @@ fn queue_boxes(
 
             ui_phase.add(UiPhaseItem {
                 entity: box_entity,
-                z_index: 0,
+                z_index: z_level.0,
 
                 draw_function: draw_function_id,
                 cached_render_pipeline_id: *pipeline,

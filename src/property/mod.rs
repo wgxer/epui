@@ -1,9 +1,11 @@
 pub mod transition;
+pub mod update;
 
 #[doc(hidden)]
 pub mod prelude {
     pub use crate::property::{
-        transition::Transition, ColoredElement, CornersRoundness, Position, Size,
+        transition::Transition, update::AutoZUpdate, ColoredElement, CornersRoundness, Position,
+        Size,
     };
 }
 
@@ -37,6 +39,10 @@ impl From<Vec2> for Position {
         Position::new(position.x as u32, position.y as u32)
     }
 }
+
+#[derive(Component, Debug, Default, Clone, Hash, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct ZLevel(pub u32);
 
 #[derive(Component, Debug, Clone, Hash, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
