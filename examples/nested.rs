@@ -37,13 +37,25 @@ fn setup(mut commands: Commands) {
                 .with_children(|parent| {
                     parent.spawn((
                         UiBoxBundle {
-                            position: Position::new(200, 200),
+                            position: Position::new(235, 235),
                             size: Size::new(50, 50),
                             color: ColoredElement::new(Color::BLUE),
                             ..Default::default()
                         },
                         CornersRoundness::from_scalar(1.0f32),
                     ));
+
+                    for (x, y) in [(85, 235), (385, 235), (235, 85), (235, 385)] {
+                        parent.spawn((
+                            UiBoxBundle {
+                                position: Position::new(x, y),
+                                size: Size::new(50, 50),
+                                color: ColoredElement::new(Color::BLACK),
+                                ..Default::default()
+                            },
+                            CornersRoundness::from_scalar(0.25f32),
+                        ));
+                    }
                 });
         });
 }

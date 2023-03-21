@@ -10,7 +10,7 @@ pub mod prelude {
 }
 
 use bevy::{
-    prelude::{Color, Component, ReflectComponent, Vec2, Vec4},
+    prelude::{Color, Component, Rect, ReflectComponent, Vec2, Vec4},
     reflect::Reflect,
 };
 
@@ -128,5 +128,51 @@ impl From<Vec4> for CornersRoundness {
             bottom_left_scalar: corners_roundness.z,
             bottom_right_scalar: corners_roundness.w,
         }
+    }
+}
+
+#[derive(Component, Debug, Default, Clone, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct VisibleRegion {
+    pub x: u32,
+    pub y: u32,
+
+    pub width: u32,
+    pub height: u32,
+}
+
+impl VisibleRegion {
+    #[inline]
+    pub fn new(x: u32, y: u32, width: u32, height: u32) -> VisibleRegion {
+        VisibleRegion {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+impl From<Rect> for VisibleRegion {
+    fn from(visible_region: Rect) -> Self {
+        VisibleRegion {
+            x: visible_region.min.x as u32,
+            y: visible_region.min.y as u32,
+
+            width: visible_region.width() as u32,
+            height: visible_region.height() as u32,
+        }
+    }
+}
+
+impl From<VisibleRegion> for Rect {
+    fn from(visible_region: VisibleRegion) -> Self {
+        Rect::from_corners(
+            Vec2::new(visible_region.x as f32, visible_region.y as f32),
+            Vec2::new(
+                visible_region.x as f32 + visible_region.width as f32,
+                visible_region.y as f32 + visible_region.height as f32,
+            ),
+        )
     }
 }

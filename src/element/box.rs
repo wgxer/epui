@@ -3,7 +3,7 @@ use bevy::{
     ecs::system::lifetimeless::SRes,
     prelude::{
         error, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemAppConfig,
-        IntoSystemConfig, Plugin, Query, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
+        IntoSystemConfig, Plugin, Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
     },
     render::{
         render_phase::{
@@ -26,7 +26,10 @@ use bytemuck_derive::{Pod, Zeroable};
 use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     prelude::AutoZUpdate,
-    property::{ColoredElement, CornersRoundness, Position, Size, ZLevel},
+    property::{
+        update::AutoVisibleRegionUpdate, ColoredElement, CornersRoundness, Position, Size,
+        VisibleRegion, ZLevel,
+    },
 };
 
 pub(crate) struct UiBoxPlugin;
@@ -56,11 +59,16 @@ pub struct UiBox;
 #[derive(Bundle, Default)]
 pub struct UiBoxBundle {
     pub ui_box: UiBox,
+
     pub position: Position,
     pub size: Size,
     pub color: ColoredElement,
+
     pub z_level: ZLevel,
     pub auto_z_update: AutoZUpdate,
+
+    pub visible_region: VisibleRegion,
+    pub auto_visible_region_update: AutoVisibleRegionUpdate,
 }
 
 #[derive(Resource, Default)]
@@ -130,6 +138,7 @@ fn extract_boxes(
                 Entity,
                 &Position,
                 &Size,
+                &VisibleRegion,
                 &ColoredElement,
                 Option<&CornersRoundness>,
                 Option<&ZLevel>,
@@ -138,13 +147,29 @@ fn extract_boxes(
         >,
     >,
 ) {
-    for (entity, position, size, colored_element, corners_roundness, z_level) in boxes.iter() {
+    for (entity, position, size, visible_region, colored_element, corners_roundness, z_level) in
+        boxes.iter()
+    {
+        let full_region = Rect::from_corners(
+            Vec2::from(position.clone()),
+            Vec2::from(position.clone()) + Vec2::from(size.clone()),
+        );
+
+        if Rect::from(visible_region.clone())
+            .intersect(full_region)
+            .size()
+            == Vec2::ZERO
+        {
+            continue;
+        }
+
         let mut entity_commands = commands.get_or_spawn(entity);
 
         entity_commands.insert((
             UiBox,
             position.clone(),
             size.clone(),
+            visible_region.clone(),
             colored_element.clone(),
             z_level.cloned().unwrap_or_default(),
         ));
@@ -167,6 +192,7 @@ fn queue_boxes(
             &Position,
             &ZLevel,
             &Size,
+            &VisibleRegion,
             &ColoredElement,
             Option<&CornersRoundness>,
         ),
@@ -267,22 +293,36 @@ fn queue_boxes(
         let mut instance = 0;
         box_buffers.instances.clear();
 
-        for (box_entity, position, z_level, size, colored_element, corners_roundness) in
-            boxes.iter()
+        for (
+            box_entity,
+            position,
+            z_level,
+            size,
+            visible_region,
+            colored_element,
+            corners_roundness,
+        ) in boxes.iter()
         {
+            let full_region = Rect::from_corners(
+                Vec2::from(position.clone()),
+                Vec2::from(position.clone()) + Vec2::from(size.clone()),
+            );
+
+            let actual_visible_region = Rect::from(visible_region.clone()).intersect(full_region);
+
             let left_top_corner = Vec2::new(
-                (x_pixel_unit * position.x as f32) - 1.0,
-                1.0 - (y_pixel_unit * position.y as f32),
+                (x_pixel_unit * actual_visible_region.min.x as f32) - 1.0,
+                1.0 - (y_pixel_unit * actual_visible_region.min.y as f32),
             );
 
             let right_top_corner = Vec2::new(
-                left_top_corner.x + (x_pixel_unit * size.width as f32),
+                left_top_corner.x + (x_pixel_unit * actual_visible_region.width() as f32),
                 left_top_corner.y,
             );
 
             let left_bottom_corner = Vec2::new(
                 left_top_corner.x,
-                left_top_corner.y - (y_pixel_unit * size.height as f32),
+                left_top_corner.y - (y_pixel_unit * actual_visible_region.height() as f32),
             );
 
             let right_bottom_corner = Vec2::new(right_top_corner.x, left_bottom_corner.y);
