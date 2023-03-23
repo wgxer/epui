@@ -13,7 +13,7 @@ pub mod prelude {
 
 use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 
-use element::r#box::UiBoxPlugin;
+use element::{r#box::UiBoxPlugin, text::UiTextPlugin};
 use property::{transition::UiTransitionPlugin, update::UiUpdatePropertiesPlugin};
 
 use crate::camera::UiCameraPlugin;
@@ -25,6 +25,7 @@ impl Plugin for UiPlugin {
         app.add_system(redraw.on_startup())
             .add_plugin(UiCameraPlugin)
             .add_plugin(UiBoxPlugin)
+            .add_plugin(UiTextPlugin)
             .add_plugin(UiTransitionPlugin)
             .add_plugin(UiUpdatePropertiesPlugin)
             .insert_resource(WinitSettings::desktop_app());

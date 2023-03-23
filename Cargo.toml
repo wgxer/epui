@@ -21,6 +21,8 @@ features = [
 bytemuck = "1.13.1"
 bytemuck_derive = "1.4.0" # Used to implement Zeroable/Pod traits
 
+glyphon = { git = "https://github.com/wgxer/glyphon", rev="6a3e165" }
+
 [profile.dev]
 opt-level = 1
 
