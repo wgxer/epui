@@ -397,10 +397,10 @@ impl<P: BatchedPhaseItem> RenderCommand<P> for DrawBox {
         }
 
         {
-            let instances_range = item
-                .batch_range()
-                .clone()
-                .expect("Batch range isn't present");
+            let Some(instances_range) = item.batch_range().clone() else {
+                error!("Batch range isn't present");
+                return RenderCommandResult::Failure;
+            };
 
             pass.draw(0..6, instances_range);
         }
