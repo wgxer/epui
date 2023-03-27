@@ -84,7 +84,7 @@ struct InstanceData {
     corner_whd: f32,         // + Corner Width & Height Difference (f32)
     half_min_axis: f32,      // + Half Minimum Axis (f32)
 
-    corners_roundness: [f32; 4],
+    corners_roundness: [f32; 4], // Corners Roundness { Left-Top, Right-Top, Left-Bottom, Right-Bottom } (Vec4)
 }
 
 impl InstanceData {
