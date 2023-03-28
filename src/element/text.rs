@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::system::lifetimeless::SRes,
+    ecs::system::lifetimeless::{Read, SRes},
     prelude::{
         error, Bundle, Color, Commands, Component, Entity, IntoSystemAppConfig, IntoSystemConfig,
         Plugin, Query, ReflectComponent, Res, ResMut, Resource,
@@ -15,6 +15,7 @@ use bevy::{
         texture::BevyDefault,
         Extract, ExtractSchedule, RenderApp, RenderSet,
     },
+    utils::HashMap,
 };
 use glyphon::{FontSystem, Metrics, SwashCache, TextArea, TextAtlas, TextBounds, TextRenderer};
 
@@ -43,7 +44,7 @@ impl Default for UiText {
 #[derive(Bundle)]
 pub struct UiTextBundle {
     pub text: UiText,
-    pub colored_element: ColoredElement,
+    pub color: ColoredElement,
 
     pub position: Position,
     pub size: Size,
@@ -59,7 +60,7 @@ impl Default for UiTextBundle {
     fn default() -> Self {
         Self {
             text: Default::default(),
-            colored_element: ColoredElement::new(Color::BLACK),
+            color: ColoredElement::new(Color::BLACK),
 
             position: Default::default(),
             size: Default::default(),
@@ -83,7 +84,7 @@ struct TextRenderData {
     font_system: FontSystem,
     swash_cache: SwashCache,
     text_atlas: TextAtlas,
-    text_renderer: TextRenderer,
+    text_renderers: HashMap<u32, TextRenderer>,
 }
 
 impl TextRenderData {
@@ -91,13 +92,12 @@ impl TextRenderData {
         font_system: FontSystem,
         swash_cache: SwashCache,
         text_atlas: TextAtlas,
-        text_renderer: TextRenderer,
     ) -> TextRenderData {
         TextRenderData {
             font_system,
             swash_cache,
             text_atlas,
-            text_renderer,
+            text_renderers: HashMap::new(),
         }
     }
 }
@@ -114,29 +114,14 @@ impl Plugin for UiTextPlugin {
         let font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
 
-        let mut text_atlas = TextAtlas::new(
+        let text_atlas = TextAtlas::new(
             render_app.world.resource::<RenderDevice>().wgpu_device(),
             &render_app.world.resource::<RenderQueue>().0,
             TextureFormat::bevy_default(),
         );
 
-        let text_renderer = TextRenderer::new(
-            &mut text_atlas,
-            render_app.world.resource::<RenderDevice>().wgpu_device(),
-            MultisampleState {
-                count: 4,
-                ..Default::default()
-            },
-            None,
-        );
-
         render_app
-            .insert_resource(TextRenderData::new(
-                font_system,
-                swash_cache,
-                text_atlas,
-                text_renderer,
-            ))
+            .insert_resource(TextRenderData::new(font_system, swash_cache, text_atlas))
             .add_render_command::<UiPhaseItem, RenderTextCommand>()
             .add_system(extract_texts.in_schedule(ExtractSchedule))
             .add_system(prepare_texts.in_set(RenderSet::Prepare))
@@ -154,13 +139,15 @@ fn extract_texts(
             &Size,
             &VisibleRegion,
             &ColoredElement,
+            Option<&ZLevel>,
         )>,
     >,
 ) {
-    for (entity, text, position, size, visible_region, colored_element) in texts.iter() {
+    for (entity, text, position, size, visible_region, colored_element, z_level) in texts.iter() {
         commands.get_or_spawn(entity).insert((
             text.clone(),
             position.clone(),
+            z_level.cloned().unwrap_or_default(),
             size.clone(),
             visible_region.clone(),
             colored_element.clone(),
@@ -236,6 +223,7 @@ fn queue_texts(
         Entity,
         &UiTextBuffer,
         &Position,
+        &ZLevel,
         &VisibleRegion,
         &ColoredElement,
     )>,
@@ -248,11 +236,31 @@ fn queue_texts(
             continue;
         };
 
-        let mut text_areas = Vec::new();
-        let mut phase_entity = None;
+        let mut text_areas_map = HashMap::new();
 
-        for (entity, text_buffer, position, visible_region, colored_element) in texts.iter() {
-            text_areas.push(TextArea {
+        for (entity, text_buffer, position, z_level, visible_region, colored_element) in
+            texts.iter()
+        {
+            let text_areas_vec =
+                if let Some((_, text_areas_vec)) = text_areas_map.get_mut(&z_level.0) {
+                    text_areas_vec
+                } else {
+                    text_areas_map.insert(&z_level.0, (entity, Vec::new()));
+
+                    let Some((_, text_areas_vec)) = text_areas_map.get_mut(&z_level.0) else {
+                        error!("Getting the value of the inserted z {} failed", z_level.0);
+                        continue;
+                    };
+
+                    text_areas_vec
+                };
+
+            let [r, g, b, a] = colored_element
+                .color
+                .as_rgba_f32()
+                .map(|x| (x * 255.0f32) as u8);
+
+            text_areas_vec.push(TextArea {
                 buffer: &text_buffer.0,
                 left: position.x as i32,
                 top: position.y as i32,
@@ -265,19 +273,36 @@ fn queue_texts(
                     bottom: visible_region.y as i32
                         + visible_region.height.min(i32::MAX as u32) as i32,
                 },
-                default_color: glyphon::Color(colored_element.color.as_rgba_u32()),
+                default_color: glyphon::Color::rgba(r, g, b, a),
             });
-
-            phase_entity = Some(entity);
         }
 
-        if let Some(phase_entity) = phase_entity {
-            let TextRenderData {
-                font_system,
-                swash_cache,
-                text_atlas,
-                text_renderer,
-            } = text_render_data.as_mut();
+        let TextRenderData {
+            font_system,
+            swash_cache,
+            text_atlas,
+            text_renderers,
+        } = text_render_data.as_mut();
+
+        for (z_index, (phase_entity, text_areas_vec)) in text_areas_map {
+            let text_renderer = if let Some(text_renderer) = text_renderers.get_mut(&z_index) {
+                text_renderer
+            } else {
+                text_renderers
+                    .insert_unique_unchecked(
+                        *z_index,
+                        TextRenderer::new(
+                            text_atlas,
+                            device.wgpu_device(),
+                            MultisampleState {
+                                count: 4,
+                                ..Default::default()
+                            },
+                            None,
+                        ),
+                    )
+                    .1
+            };
 
             if let Err(err) = text_renderer.prepare(
                 device.wgpu_device(),
@@ -288,7 +313,7 @@ fn queue_texts(
                     width: viewport_size.x,
                     height: viewport_size.y,
                 },
-                &text_areas,
+                &text_areas_vec,
                 swash_cache,
             ) {
                 error!("Error during preparing text renderer: {:?}", err);
@@ -303,9 +328,9 @@ fn queue_texts(
                 entity: phase_entity,
                 batch_range: None,
                 cached_render_pipeline_id: CachedRenderPipelineId::INVALID,
-                z_index: 0,
+                z_index: *z_index,
                 draw_function: draw_function_id,
-            })
+            });
         }
     }
 }
@@ -314,19 +339,24 @@ struct RenderTextCommand;
 
 impl<P: PhaseItem> RenderCommand<P> for RenderTextCommand {
     type Param = SRes<TextRenderData>;
-    type ItemWorldQuery = ();
     type ViewWorldQuery = ();
+    type ItemWorldQuery = Read<ZLevel>;
 
     fn render<'w>(
         _item: &P,
         _view: bevy::ecs::query::ROQueryItem<'w, Self::ViewWorldQuery>,
-        _entity: bevy::ecs::query::ROQueryItem<'w, Self::ItemWorldQuery>,
+        z_level: bevy::ecs::query::ROQueryItem<'w, Self::ItemWorldQuery>,
         param: bevy::ecs::system::SystemParamItem<'w, '_, Self::Param>,
         pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
     ) -> bevy::render::render_phase::RenderCommandResult {
         let param = param.into_inner();
 
-        if let Err(err) = param.text_renderer.render(&param.text_atlas, pass) {
+        let Some(text_renderer) = param.text_renderers.get(&z_level.0) else {
+            error!("Couldn't find a text renderer for z level: {}", z_level.0);
+            return RenderCommandResult::Failure;
+        };
+
+        if let Err(err) = text_renderer.render(&param.text_atlas, pass) {
             error!("Error during rendering text: {:?}", err);
             RenderCommandResult::Failure
         } else {

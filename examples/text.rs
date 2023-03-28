@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{App, Commands, IntoSystemAppConfig},
+    prelude::{App, Color, Commands, IntoSystemAppConfig},
     DefaultPlugins,
 };
 
@@ -21,6 +21,8 @@ fn setup(mut commands: Commands) {
             text: String::from("Hello world !"),
             font_size: 32,
         },
+        color: ColoredElement::new(Color::RED),
+
         position: Position::new(50, 50),
         size: Size::new(500, 50),
 
