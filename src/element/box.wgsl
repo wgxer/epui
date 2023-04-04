@@ -6,7 +6,7 @@ struct InstanceInput {
 
     @location(4) color: vec4<f32>, 
 
-    @location(5) corner_center_and_whd_and_radius: vec4<f32>, 
+    @location(5) corner_center_and_half_whd_and_radius: vec4<f32>, 
     @location(6) corner_roundness_shifts: vec4<f32>
 }
 
@@ -43,8 +43,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, in_instance: InstanceInp
     vertex_output.position = vec4<f32>(position, 0.0, 1.0);
     vertex_output.color = in_instance.color;
     
-    vertex_output.center_pixel = in_instance.corner_center_and_whd_and_radius.xy;
-    vertex_output.corner_roundness = vec3<f32>(corner_roundness_shift, in_instance.corner_center_and_whd_and_radius.zw);
+    vertex_output.center_pixel = in_instance.corner_center_and_half_whd_and_radius.xy;
+    vertex_output.corner_roundness = vec3<f32>(corner_roundness_shift, in_instance.corner_center_and_half_whd_and_radius.zw);
     
     return vertex_output;
 }
@@ -54,27 +54,29 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     var roundness_center = input.center_pixel;
     
     let position_relative_to_center = input.position.xy - roundness_center;
-    let width_height_difference = input.corner_roundness.y;
+    
+    let width_height_half_difference = input.corner_roundness.y;
+    let width_height_half_difference_abs = abs(width_height_half_difference);
 
-    if width_height_difference >= 0.0 {
-        if abs(position_relative_to_center.x) <= width_height_difference {
+    if width_height_half_difference >= 0.0 {
+        if abs(position_relative_to_center.x) <= width_height_half_difference_abs {
             return input.color;
         }
 
         if position_relative_to_center.x >= 0.0 {
-            roundness_center.x += abs(width_height_difference);
+            roundness_center.x += width_height_half_difference_abs;
         } else {
-            roundness_center.x -= abs(width_height_difference);
+            roundness_center.x -= width_height_half_difference_abs;
         }
     } else {
-        if abs(position_relative_to_center.y) <= width_height_difference {
+        if abs(position_relative_to_center.y) <= width_height_half_difference_abs {
             return input.color;
         }
 
         if position_relative_to_center.y >= 0.0 {
-            roundness_center.y += abs(width_height_difference);
+            roundness_center.y += width_height_half_difference_abs;
         } else {
-            roundness_center.y -= abs(width_height_difference);
+            roundness_center.y -= width_height_half_difference_abs;
         }
     }
 

@@ -81,7 +81,7 @@ struct InstanceData {
     color: [f32; 4],         // Color (RGBA)
 
     corner_center: [f32; 2], // Vec4: Corner Center (Vec2)
-    corner_whd: f32,         // + Corner Width & Height Difference (f32)
+    corner_half_whd: f32,    // + Corner Width & Height Difference (f32)
     half_min_axis: f32,      // + Half Minimum Axis (f32)
 
     corners_roundness: [f32; 4], // Corners Roundness { Left-Top, Right-Top, Left-Bottom, Right-Bottom } (Vec4)
@@ -92,7 +92,7 @@ impl InstanceData {
         vertices: [Vec2; 4],
         color: Color,
         corner_center: Vec2,
-        corner_whd: f32,
+        corner_half_whd: f32,
         half_min_axis: f32,
         corners_roundness: Vec4,
     ) -> InstanceData {
@@ -106,7 +106,7 @@ impl InstanceData {
             color: color.into(),
 
             corner_center: corner_center.into(),
-            corner_whd,
+            corner_half_whd,
             half_min_axis,
 
             corners_roundness: corners_roundness.into(),
@@ -334,7 +334,7 @@ fn queue_boxes(
 
             let corners_roundness = Vec4::from(corners_roundness.cloned().unwrap_or_default());
             let min_half_unit = u32::min(size.width, size.height) as f32 / 2.0;
-            let corner_whd = size.width as f32 - size.height as f32; // Positive = Width > Height, Negative = Width < Height
+            let corner_half_whd = (size.width as f32 - size.height as f32) / 2.0; // Positive = Width > Height, Negative = Width < Height
 
             box_buffers.instances.push(InstanceData::new(
                 [
@@ -345,7 +345,7 @@ fn queue_boxes(
                 ],
                 colored_element.color,
                 corner_center,
-                corner_whd,
+                corner_half_whd,
                 min_half_unit,
                 (1.0 - corners_roundness) * min_half_unit,
             ));
