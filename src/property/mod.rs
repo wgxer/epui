@@ -1,11 +1,14 @@
+pub mod collision;
 pub mod transition;
 pub mod update;
 
 #[doc(hidden)]
 pub mod prelude {
     pub use crate::property::{
-        transition::Transition, update::AutoZUpdate, ColoredElement, CornersRoundness, Position,
-        Size,
+        collision::{AABBCollisionBundle, BoxCollisionBundle},
+        transition::Transition,
+        update::AutoZUpdate,
+        ColoredElement, CornersRoundness, Position, Size,
     };
 }
 
