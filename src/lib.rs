@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod element;
+pub mod event;
 pub mod property;
 
 #[doc(hidden)]
@@ -14,6 +15,7 @@ pub mod prelude {
 use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 
 use element::{r#box::UiBoxPlugin, text::UiTextPlugin};
+use event::UiEventPlugin;
 use property::{
     collision::UiCollisionPlugin, transition::UiTransitionPlugin, update::UiUpdatePropertiesPlugin,
 };
@@ -31,6 +33,7 @@ impl Plugin for UiPlugin {
             .add_plugin(UiTransitionPlugin)
             .add_plugin(UiCollisionPlugin)
             .add_plugin(UiUpdatePropertiesPlugin)
+            .add_plugin(UiEventPlugin)
             .insert_resource(WinitSettings::desktop_app());
     }
 }

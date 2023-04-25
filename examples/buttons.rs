@@ -1,21 +1,17 @@
 use std::time::Duration;
 
 use bevy::{
-    input::{mouse::MouseButtonInput, ButtonState},
     prelude::{
-        App, BuildChildren, Color, Commands, Component, Entity, EventReader, IntoSystemAppConfig,
-        MouseButton, Query, Rect, Vec2, With,
+        info, App, BuildChildren, Color, Commands, Component, Entity, EventReader,
+        IntoSystemAppConfig, Query, With,
     },
-    window::{PrimaryWindow, Window},
     DefaultPlugins,
 };
 
 use epui::{
+    event::{ClickEvent, PressEvent, ReleaseEvent},
     prelude::*,
-    property::{
-        collision::{BoxCollisionBundle, Collision},
-        VisibleRegion,
-    },
+    property::collision::BoxCollisionBundle,
 };
 
 fn main() {
@@ -23,7 +19,8 @@ fn main() {
         .add_system(setup.on_startup())
         .add_plugins(DefaultPlugins)
         .add_plugin(UiPlugin)
-        .add_system(on_mouse_click)
+        .add_system(update_button_color)
+        .add_system(on_button_click)
         .run();
 }
 
@@ -87,47 +84,44 @@ fn setup(mut commands: Commands) {
         });
 }
 
-fn on_mouse_click(
+fn update_button_color(
     mut commands: Commands,
-    primary_window: Query<&Window, With<PrimaryWindow>>,
-    elements: Query<(Entity, &Position, &Size, &Collision, Option<&VisibleRegion>)>,
-    mut events: EventReader<MouseButtonInput>,
+    buttons: Query<Entity, With<Button>>,
+    mut press_events: EventReader<PressEvent>,
+    mut release_events: EventReader<ReleaseEvent>,
 ) {
-    let primary_window = primary_window.single();
+    for press_event in press_events.iter() {
+        let Ok(button_entity) = buttons.get(press_event.element) else {
+            continue;
+        };
 
-    let Some(cursor_position) = primary_window.cursor_position() else {
-        return;
-    };
+        commands.entity(button_entity).insert(Transition::new(
+            ColoredElement::new(Color::DARK_GREEN),
+            Duration::from_millis(100),
+        ));
+    }
 
-    let cursor_position = Vec2::new(
-        cursor_position.x,
-        primary_window.height() - cursor_position.y,
-    )
-    .round();
+    for release_event in release_events.iter() {
+        let Ok(button_entity) = buttons.get(release_event.element) else {
+            continue;
+        };
 
-    for click_event in events.into_iter() {
-        if click_event.button == MouseButton::Left {
-            for (entity, position, size, collision, visible_region) in elements.iter() {
-                let visible_region = match visible_region {
-                    Some(visible_region) => visible_region.clone(),
-                    None => VisibleRegion::new(position.x, position.y, size.width, size.height),
-                };
+        commands.entity(button_entity).insert(Transition::new(
+            ColoredElement::new(Color::GRAY),
+            Duration::from_millis(100),
+        ));
+    }
+}
 
-                if Rect::from(visible_region).contains(cursor_position) {
-                    if collision
-                        .0
-                        .contains(position.clone(), size.clone(), cursor_position)
-                    {
-                        commands.entity(entity).insert(Transition::new(
-                            ColoredElement::new(match click_event.state {
-                                ButtonState::Pressed => Color::DARK_GREEN,
-                                ButtonState::Released => Color::GRAY,
-                            }),
-                            Duration::from_millis(100),
-                        ));
-                    }
-                }
-            }
-        }
+fn on_button_click(
+    buttons: Query<Entity, With<Button>>,
+    mut click_events: EventReader<ClickEvent>,
+) {
+    for click_event in click_events.iter() {
+        let Ok(_) = buttons.get(click_event.element) else {
+            continue;
+        };
+
+        info!("Button got clicked !");
     }
 }
