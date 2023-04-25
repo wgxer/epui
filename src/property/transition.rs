@@ -44,6 +44,10 @@ impl<T: PropertyTransition<T> + Component + Clone> Transition<T> {
             duration: duration.as_secs_f32(),
         }
     }
+
+    pub fn start_from_now(&mut self) {
+        self.start_time = Instant::now();
+    }
 }
 
 pub(super) fn transition_system<T: PropertyTransition<T> + Component + Clone>(
