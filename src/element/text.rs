@@ -13,7 +13,7 @@ use bevy::{
         render_resource::{CachedRenderPipelineId, MultisampleState, TextureFormat},
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, RenderApp, RenderSet,
+        Extract, ExtractSchedule, MainWorld, RenderApp, RenderSet,
     },
     utils::HashMap,
 };
@@ -22,7 +22,11 @@ use glyphon::{FontSystem, Metrics, SwashCache, TextArea, TextAtlas, TextBounds, 
 use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     prelude::{AutoZUpdate, ColoredElement, Position, Size},
-    property::{update::AutoVisibleRegionUpdate, VisibleRegion, ZLevel},
+    property::{
+        state::{Active, ActiveOptionExt},
+        update::AutoVisibleRegionUpdate,
+        VisibleRegion, ZLevel,
+    },
 };
 
 #[derive(Component, Clone, PartialEq, Eq, Reflect)]
@@ -130,6 +134,7 @@ impl Plugin for UiTextPlugin {
 }
 
 fn extract_texts(
+    main_world: Res<MainWorld>,
     mut commands: Commands,
     texts: Extract<
         Query<(
@@ -140,14 +145,49 @@ fn extract_texts(
             &VisibleRegion,
             &ColoredElement,
             Option<&ZLevel>,
+            Option<&Active<UiText>>,
+            Option<&Active<Position>>,
+            Option<&Active<Size>>,
+            Option<&Active<VisibleRegion>>,
+            Option<&Active<ColoredElement>>,
+            Option<&Active<ZLevel>>,
         )>,
     >,
 ) {
-    for (entity, text, position, size, visible_region, colored_element, z_level) in texts.iter() {
+    for (
+        entity,
+        base_text,
+        base_position,
+        base_size,
+        base_visible_region,
+        base_colored_element,
+        base_z_level,
+        text,
+        position,
+        size,
+        visible_region,
+        colored_element,
+        z_level,
+    ) in texts.iter()
+    {
+        let entity_ref = main_world.entity(entity);
+
+        let (text, position, size, visible_region, colored_element, z_level) = (
+            text.active_or_base(&entity_ref, base_text),
+            position.active_or_base(&entity_ref, base_position),
+            size.active_or_base(&entity_ref, base_size),
+            visible_region.active_or_base(&entity_ref, base_visible_region),
+            colored_element.active_or_base(&entity_ref, base_colored_element),
+            z_level
+                .map(|z_level| z_level.active(&entity_ref))
+                .or(base_z_level)
+                .cloned(),
+        );
+
         commands.get_or_spawn(entity).insert((
             text.clone(),
             position.clone(),
-            z_level.cloned().unwrap_or_default(),
+            z_level.unwrap_or_default().clone(),
             size.clone(),
             visible_region.clone(),
             colored_element.clone(),

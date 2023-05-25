@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::{
     prelude::{
         info, App, BuildChildren, Color, Commands, Component, Entity, EventReader,
-        IntoSystemAppConfig, Query, With,
+        IntoSystemAppConfig, Query, With, World,
     },
     DefaultPlugins,
 };
@@ -11,11 +11,17 @@ use bevy::{
 use epui::{
     event::{ClickEvent, PressEvent, ReleaseEvent},
     prelude::*,
-    property::collision::BoxCollisionBundle,
+    property::{
+        collision::BoxCollisionBundle,
+        state::{Active, AppComponentStateExt, ComponentState},
+        transition::transition_system,
+    },
 };
 
 fn main() {
     App::new()
+        .add_component_state::<ClickState, ColoredElement>(())
+        .add_system(transition_system::<Clicked<ColoredElement>>)
         .add_system(setup.on_startup())
         .add_plugins(DefaultPlugins)
         .add_plugin(UiPlugin)
@@ -27,7 +33,12 @@ fn main() {
 #[derive(Component)]
 struct Button;
 
-fn setup(mut commands: Commands) {
+#[derive(Clone)]
+struct ClickState;
+
+type Clicked<T> = ComponentState<ClickState, T>;
+
+fn setup(world: &World, mut commands: Commands) {
     commands.spawn(UiCameraBundle::default());
 
     commands
@@ -35,6 +46,7 @@ fn setup(mut commands: Commands) {
             UiBoxBundle {
                 position: Position::new(50, 50),
                 size: Size::new(200, 60),
+
                 color: ColoredElement::new(Color::GRAY),
 
                 ..Default::default()
@@ -42,6 +54,7 @@ fn setup(mut commands: Commands) {
             CornersRoundness::from_scalar(1.0f32),
             BoxCollisionBundle::new(),
             Button,
+            Active::<ColoredElement>::new(world.components()),
         ))
         .with_children(|parent| {
             parent.spawn(UiTextBundle {
@@ -68,6 +81,7 @@ fn setup(mut commands: Commands) {
             },
             AABBCollisionBundle::new(),
             Button,
+            Active::<ColoredElement>::new(world.components()),
         ))
         .with_children(|parent| {
             parent.spawn(UiTextBundle {
@@ -85,31 +99,46 @@ fn setup(mut commands: Commands) {
 }
 
 fn update_button_color(
+    world: &World,
     mut commands: Commands,
-    buttons: Query<Entity, With<Button>>,
+    mut buttons: Query<(Entity, &Active<ColoredElement>), With<Button>>,
     mut press_events: EventReader<PressEvent>,
     mut release_events: EventReader<ReleaseEvent>,
 ) {
     for press_event in press_events.iter() {
-        let Ok(button_entity) = buttons.get(press_event.element) else {
+        let Ok((button_entity, active_color)) = buttons.get(press_event.element) else {
             continue;
         };
 
-        commands.entity(button_entity).insert(Transition::new(
-            ColoredElement::new(Color::DARK_GREEN),
-            Duration::from_millis(100),
+        commands.entity(button_entity).insert((
+            Clicked::new(active_color.active(&world.entity(button_entity)).clone()),
+            Transition::new(
+                Clicked::new(ColoredElement::new(Color::BLACK)),
+                Duration::from_millis(250),
+            ),
         ));
     }
 
     for release_event in release_events.iter() {
-        let Ok(button_entity) = buttons.get(release_event.element) else {
+        let Ok((button_entity, active_color)) = buttons.get_mut(release_event.element) else {
             continue;
         };
 
-        commands.entity(button_entity).insert(Transition::new(
-            ColoredElement::new(Color::GRAY),
-            Duration::from_millis(100),
-        ));
+        if active_color.is_active_state::<Clicked<ColoredElement>>(world.components()) {
+            commands.entity(button_entity).insert(Transition::new(
+                Clicked::new(
+                    active_color
+                        .get_state(&world.entity(button_entity), active_color.states_len() - 2)
+                        .expect("Couldn't get new active color")
+                        .clone(),
+                ),
+                Duration::from_millis(250),
+            ));
+        } else {
+            commands
+                .entity(button_entity)
+                .remove::<Clicked<ColoredElement>>();
+        }
     }
 }
 

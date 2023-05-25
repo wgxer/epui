@@ -10,6 +10,8 @@ use bevy::{
     window::RequestRedraw,
 };
 
+use super::state::ComponentState;
+
 pub(crate) struct UiTransitionPlugin;
 
 impl Plugin for UiTransitionPlugin {
@@ -50,7 +52,7 @@ impl<T: PropertyTransition<T> + Component + Clone> Transition<T> {
     }
 }
 
-pub(super) fn transition_system<T: PropertyTransition<T> + Component + Clone>(
+pub fn transition_system<T: PropertyTransition<T> + Component + Clone>(
     mut commands: Commands,
     mut transitions: Query<(Entity, &mut Transition<T>, &mut T)>,
     mut redraw_requester: EventWriter<RequestRedraw>,
@@ -131,5 +133,17 @@ impl PropertyTransition<CornersRoundness> for CornersRoundness {
         Vec4::from(from.clone())
             .lerp(to.clone().into(), progress)
             .into()
+    }
+}
+
+impl<S: Send + Sync + 'static, T: Component + Clone + PropertyTransition<T>>
+    PropertyTransition<ComponentState<S, T>> for ComponentState<S, T>
+{
+    fn transition<'a>(
+        progress: f32,
+        from: &'a ComponentState<S, T>,
+        to: &'a ComponentState<S, T>,
+    ) -> ComponentState<S, T> {
+        ComponentState::new(T::transition(progress, from, to))
     }
 }

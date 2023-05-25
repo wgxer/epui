@@ -18,7 +18,7 @@ use bevy::{
         },
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, RenderApp, RenderSet,
+        Extract, ExtractSchedule, MainWorld, RenderApp, RenderSet,
     },
 };
 use bytemuck_derive::{Pod, Zeroable};
@@ -27,8 +27,9 @@ use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     prelude::AutoZUpdate,
     property::{
-        update::AutoVisibleRegionUpdate, ColoredElement, CornersRoundness, Position, Size,
-        VisibleRegion, ZLevel,
+        state::{Active, ActiveOptionExt},
+        update::AutoVisibleRegionUpdate,
+        ColoredElement, CornersRoundness, Position, Size, VisibleRegion, ZLevel,
     },
 };
 
@@ -131,6 +132,7 @@ impl Default for BoxBuffers {
 struct BoxShader(Handle<Shader>);
 
 fn extract_boxes(
+    main_world: Res<MainWorld>,
     mut commands: Commands,
     boxes: Extract<
         Query<
@@ -142,14 +144,50 @@ fn extract_boxes(
                 &ColoredElement,
                 Option<&CornersRoundness>,
                 Option<&ZLevel>,
+                Option<&Active<Position>>,
+                Option<&Active<Size>>,
+                Option<&Active<VisibleRegion>>,
+                Option<&Active<ColoredElement>>,
+                Option<&Active<CornersRoundness>>,
+                Option<&Active<ZLevel>>,
             ),
             With<UiBox>,
         >,
     >,
 ) {
-    for (entity, position, size, visible_region, colored_element, corners_roundness, z_level) in
-        boxes.iter()
+    for (
+        entity,
+        base_position,
+        base_size,
+        base_visible_region,
+        base_colored_element,
+        base_corners_roundness,
+        base_z_level,
+        position,
+        size,
+        visible_region,
+        colored_element,
+        corners_roundness,
+        z_level,
+    ) in boxes.iter()
     {
+        let entity_ref = main_world.entity(entity);
+
+        let (position, size, visible_region, colored_element, corners_roundness, z_level) = (
+            position.active_or_base(&entity_ref, base_position),
+            size.active_or_base(&entity_ref, base_size),
+            visible_region.active_or_base(&entity_ref, base_visible_region),
+            colored_element.active_or_base(&entity_ref, base_colored_element),
+            corners_roundness
+                .map(|corners_roundness| corners_roundness.active(&entity_ref))
+                .or(base_corners_roundness)
+                .cloned(),
+            z_level
+                .map(|z_level| z_level.active(&entity_ref))
+                .or(base_z_level)
+                .cloned(),
+        );
+
         let full_region = Rect::from_corners(
             Vec2::from(position.clone()),
             Vec2::from(position.clone()) + Vec2::from(size.clone()),
@@ -171,7 +209,7 @@ fn extract_boxes(
             size.clone(),
             visible_region.clone(),
             colored_element.clone(),
-            z_level.cloned().unwrap_or_default(),
+            z_level.unwrap_or_default(),
         ));
 
         if let Some(corners_roundness) = corners_roundness {
@@ -285,7 +323,9 @@ fn queue_boxes(
     let draw_function_id = draw_functions.read().id::<RenderBoxCommand>();
 
     for (viewport_size, mut ui_phase) in view_query.iter_mut() {
-        let Some(viewport_size) = viewport_size.0 else { continue; };
+        let Some(viewport_size) = viewport_size.0 else {
+            continue;
+        };
 
         let x_pixel_unit = 2.0 / viewport_size.x as f32;
         let y_pixel_unit = 2.0 / viewport_size.y as f32;
