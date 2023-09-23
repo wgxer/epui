@@ -29,25 +29,24 @@ use crate::{
     },
 };
 
-#[derive(Component, Clone, PartialEq, Eq, Reflect)]
+#[derive(Component, Debug, Default, Clone, Hash, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
-pub struct UiText {
-    pub text: String,
-    pub font_size: u32,
-}
+pub struct UiText(pub String);
 
-impl Default for UiText {
+#[derive(Component, Debug, Clone, Hash, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct FontSize(pub u32);
+
+impl Default for FontSize {
     fn default() -> Self {
-        UiText {
-            text: String::new(),
-            font_size: 16,
-        }
+        FontSize(16)
     }
 }
 
 #[derive(Bundle)]
 pub struct UiTextBundle {
     pub text: UiText,
+    pub font_size: FontSize,
     pub color: ColoredElement,
 
     pub position: Position,
@@ -64,6 +63,7 @@ impl Default for UiTextBundle {
     fn default() -> Self {
         Self {
             text: Default::default(),
+            font_size: Default::default(),
             color: ColoredElement::new(Color::BLACK),
 
             position: Default::default(),
@@ -140,12 +140,14 @@ fn extract_texts(
         Query<(
             Entity,
             &UiText,
+            &FontSize,
             &Position,
             &Size,
             &VisibleRegion,
             &ColoredElement,
             Option<&ZLevel>,
             Option<&Active<UiText>>,
+            Option<&Active<FontSize>>,
             Option<&Active<Position>>,
             Option<&Active<Size>>,
             Option<&Active<VisibleRegion>>,
@@ -157,12 +159,14 @@ fn extract_texts(
     for (
         entity,
         base_text,
+        base_font_size,
         base_position,
         base_size,
         base_visible_region,
         base_colored_element,
         base_z_level,
         text,
+        font_size,
         position,
         size,
         visible_region,
@@ -172,8 +176,9 @@ fn extract_texts(
     {
         let entity_ref = main_world.entity(entity);
 
-        let (text, position, size, visible_region, colored_element, z_level) = (
+        let (text, font_size, position, size, visible_region, colored_element, z_level) = (
             text.active_or_base(&entity_ref, base_text),
+            font_size.active_or_base(&entity_ref, base_font_size),
             position.active_or_base(&entity_ref, base_position),
             size.active_or_base(&entity_ref, base_size),
             visible_region.active_or_base(&entity_ref, base_visible_region),
@@ -186,6 +191,7 @@ fn extract_texts(
 
         commands.get_or_spawn(entity).insert((
             text.clone(),
+            font_size.clone(),
             position.clone(),
             z_level.unwrap_or_default().clone(),
             size.clone(),
@@ -198,13 +204,13 @@ fn extract_texts(
 fn prepare_texts(
     mut commands: Commands,
     mut text_render_data: ResMut<TextRenderData>,
-    mut texts: Query<(Entity, &Size, &UiText, Option<&mut UiTextBuffer>)>,
+    mut texts: Query<(Entity, &Size, &UiText, &FontSize, Option<&mut UiTextBuffer>)>,
 ) {
-    for (entity, size, text, buffer) in texts.iter_mut() {
+    for (entity, size, text, font_size, buffer) in texts.iter_mut() {
         if let Some(mut buffer) = buffer {
             buffer.0.set_text(
                 &mut text_render_data.font_system,
-                &text.text,
+                &text.0,
                 glyphon::Attrs::new(),
             );
 
@@ -220,7 +226,7 @@ fn prepare_texts(
 
             buffer.0.set_metrics(
                 &mut text_render_data.font_system,
-                Metrics::new(text.font_size as f32, text.font_size as f32 + 4.0f32),
+                Metrics::new(font_size.0 as f32, font_size.0 as f32 + 4.0f32),
             );
 
             buffer
@@ -229,12 +235,12 @@ fn prepare_texts(
         } else if let Some(mut commands) = commands.get_entity(entity) {
             let mut buffer = glyphon::Buffer::new(
                 &mut text_render_data.font_system,
-                Metrics::new(text.font_size as f32, text.font_size as f32 + 4.0f32),
+                Metrics::new(font_size.0 as f32, font_size.0 as f32 + 4.0f32),
             );
 
             buffer.set_text(
                 &mut text_render_data.font_system,
-                &text.text,
+                &text.0,
                 glyphon::Attrs::new(),
             );
 

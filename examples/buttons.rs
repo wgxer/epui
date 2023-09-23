@@ -21,9 +21,9 @@ use epui::{
 fn main() {
     App::new()
         .add_component_state::<ClickState, ColoredElement>(())
-        .add_component_state::<ClickState, UiText>(())
+        .add_component_state::<ClickState, FontSize>(())
         .add_system(transition_system::<Clicked<ColoredElement>>)
-        .add_system(transition_system::<Clicked<UiText>>)
+        .add_system(transition_system::<Clicked<FontSize>>)
         .add_system(setup.on_startup())
         .add_plugins(DefaultPlugins)
         .add_plugin(UiPlugin)
@@ -60,10 +60,8 @@ fn setup(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn((
                 UiTextBundle {
-                    text: UiText {
-                        text: String::from("Button A"),
-                        font_size: 36,
-                    },
+                    text: UiText(String::from("Button A")),
+                    font_size: FontSize(32),
 
                     position: Position::new(60, 60),
                     size: Size::new(180, 40),
@@ -89,10 +87,8 @@ fn setup(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn((
                 UiTextBundle {
-                    text: UiText {
-                        text: String::from("Button B"),
-                        font_size: 36,
-                    },
+                    text: UiText(String::from("Button B")),
+                    font_size: FontSize(32),
 
                     position: Position::new(60, 160),
                     size: Size::new(180, 40),
@@ -108,7 +104,7 @@ fn update_button_color(
     world: &World,
     mut commands: Commands,
     mut buttons: Query<(Entity, &ColoredElement, Option<&Active<ColoredElement>>), With<Button>>,
-    mut texts: Query<(Entity, &UiText, Option<&Active<UiText>>)>,
+    mut texts: Query<(Entity, &FontSize, Option<&Active<FontSize>>)>,
     mut press_events: EventReader<PressEvent>,
     mut release_events: EventReader<ReleaseEvent>,
 ) {
@@ -116,19 +112,19 @@ fn update_button_color(
         let entity_ref = world.entity(press_event.element);
 
         let Ok((button_entity, base_color, active_color)) = buttons.get(press_event.element) else {
-            let Ok((text_entity, base_text, active_text)) = texts.get(press_event.element) else {
+            let Ok((text_entity, base_font_size, active_font_size)) =
+                texts.get(press_event.element)
+            else {
                 continue;
             };
 
             commands.entity(text_entity).insert((
-                Clicked::new(active_text.active_or_base(&entity_ref, base_text).clone()),
-                Transition::new(
-                    Clicked::new(UiText {
-                        text: String::from("Clicked"),
-                        font_size: 24,
-                    }),
-                    Duration::from_millis(100),
+                Clicked::new(
+                    active_font_size
+                        .active_or_base(&entity_ref, base_font_size)
+                        .clone(),
                 ),
+                Transition::new(Clicked::new(FontSize(24)), Duration::from_millis(100)),
             ));
 
             continue;
@@ -145,16 +141,20 @@ fn update_button_color(
 
     for release_event in release_events.iter() {
         let Ok((button_entity, _, active_color)) = buttons.get_mut(release_event.element) else {
-            let Ok((text_entity, _, active_text)) = texts.get_mut(release_event.element) else {
+            let Ok((text_entity, _, active_font_size)) = texts.get_mut(release_event.element)
+            else {
                 continue;
             };
 
-            if let Some(active_text) = active_text {
-                if active_text.is_active_state::<Clicked<UiText>>(world.components()) {
+            if let Some(active_font_size) = active_font_size {
+                if active_font_size.is_active_state::<Clicked<FontSize>>(world.components()) {
                     commands.entity(text_entity).insert(Transition::new(
                         Clicked::new(
-                            active_text
-                                .get_state(&world.entity(text_entity), active_text.states_len() - 2)
+                            active_font_size
+                                .get_state(
+                                    &world.entity(text_entity),
+                                    active_font_size.states_len() - 2,
+                                )
                                 .expect("Couldn't get new active color")
                                 .clone(),
                         ),
@@ -179,7 +179,7 @@ fn update_button_color(
                             .expect("Couldn't get new active color")
                             .clone(),
                     ),
-                    Duration::from_millis(200),
+                    Duration::from_millis(400),
                 ));
 
                 continue;

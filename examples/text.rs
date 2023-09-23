@@ -17,10 +17,8 @@ fn setup(mut commands: Commands) {
     commands.spawn(UiCameraBundle::default());
 
     commands.spawn(UiTextBundle {
-        text: UiText {
-            text: String::from("Hello world !"),
-            font_size: 32,
-        },
+        text: UiText(String::from("Hello world !")),
+        font_size: FontSize(32),
         color: ColoredElement::new(Color::RED),
 
         position: Position::new(50, 50),
