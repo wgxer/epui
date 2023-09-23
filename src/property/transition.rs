@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::property::*;
+use crate::{prelude::UiText, property::*};
 use bevy::{
     prelude::{
         Commands, Component, CoreSet, Entity, EventWriter, IntoSystemConfigs, Plugin, Query, Vec2,
@@ -22,6 +22,7 @@ impl Plugin for UiTransitionPlugin {
                 transition_system::<Size>,
                 transition_system::<ColoredElement>,
                 transition_system::<CornersRoundness>,
+                transition_system::<UiText>,
             )
                 .in_base_set(CoreSet::PostUpdate),
         );
@@ -133,6 +134,18 @@ impl PropertyTransition<CornersRoundness> for CornersRoundness {
         Vec4::from(from.clone())
             .lerp(to.clone().into(), progress)
             .into()
+    }
+}
+
+impl PropertyTransition<UiText> for UiText {
+    fn transition<'a>(progress: f32, from: &'a UiText, to: &'a UiText) -> UiText {
+        UiText {
+            text: to.text.clone(),
+            font_size: Vec2::splat(from.font_size as f32)
+                .lerp(Vec2::splat(to.font_size as f32), progress)
+                .x
+                .round() as u32,
+        }
     }
 }
 
