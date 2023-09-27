@@ -17,7 +17,8 @@ use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 use element::{r#box::UiBoxPlugin, text::UiTextPlugin};
 use event::UiEventPlugin;
 use property::{
-    collision::UiCollisionPlugin, transition::UiTransitionPlugin, update::UiUpdatePropertiesPlugin,
+    auto_remove::UiAutoRemovePlugin, collision::UiCollisionPlugin, transition::UiTransitionPlugin,
+    update::UiUpdatePropertiesPlugin,
 };
 
 use crate::camera::UiCameraPlugin;
@@ -31,6 +32,7 @@ impl Plugin for UiPlugin {
             .add_plugin(UiBoxPlugin)
             .add_plugin(UiTextPlugin)
             .add_plugin(UiTransitionPlugin)
+            .add_plugin(UiAutoRemovePlugin)
             .add_plugin(UiCollisionPlugin)
             .add_plugin(UiUpdatePropertiesPlugin)
             .add_plugin(UiEventPlugin)

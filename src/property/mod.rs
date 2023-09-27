@@ -1,3 +1,4 @@
+pub mod auto_remove;
 pub mod collision;
 pub mod state;
 pub mod transition;
