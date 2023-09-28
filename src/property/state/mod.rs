@@ -1,3 +1,5 @@
+pub mod click;
+
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -89,6 +91,22 @@ impl<T: Component + Clone> Active<T> {
         }
     }
 
+    pub fn get_second_active<'a>(&self, entity_ref: &'a EntityRef) -> Option<&'a T> {
+        if self.component_ids.len() >= 2 {
+            if let Some(second_active) = self
+                .component_ids
+                .get(self.component_ids.len() - 2)
+                .copied()
+            {
+                Some(Self::get_by_component_id(entity_ref, second_active))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn get_state<'a>(&self, entity_ref: &'a EntityRef, index: usize) -> Option<&'a T> {
         self.component_ids
             .get(index)
@@ -151,6 +169,7 @@ impl<T: Component + Clone> Active<T> {
 pub trait ActiveOptionExt<T: Component + Clone> {
     fn is_active_state<C: Component>(&self, components: &Components) -> bool;
     fn active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T;
+    fn second_active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T;
 }
 
 impl<T: Component + Clone> ActiveOptionExt<T> for Option<&Active<T>> {
@@ -161,6 +180,12 @@ impl<T: Component + Clone> ActiveOptionExt<T> for Option<&Active<T>> {
 
     fn active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T {
         self.map(|active| active.active(entity_ref)).unwrap_or(base)
+    }
+
+    fn second_active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T {
+        self.map(|active| active.get_second_active(entity_ref))
+            .unwrap_or(Some(base))
+            .unwrap_or(base)
     }
 }
 
@@ -199,8 +224,6 @@ fn add_component_state<S: Send + Sync + 'static, T: Component + Clone>(
         } else {
             let mut active = Active::<T>::new(components);
 
-            bevy::log::info!("new active<T>");
-
             active.component_ids.push(
                 components.component_id::<ComponentState<S, T>>().expect(
                     format!(
@@ -217,13 +240,15 @@ fn add_component_state<S: Send + Sync + 'static, T: Component + Clone>(
 }
 
 fn remove_component_state<S: Send + Sync + 'static, T: Component + Clone>(
+    mut commands: Commands,
     components: &Components,
-    mut active_components: Query<&mut Active<T>>,
+
+    mut active_components: Query<(Entity, &mut Active<T>)>,
     mut removed_states: RemovedComponents<ComponentState<S, T>>,
 ) {
     let mut active_components = active_components.iter_many_mut(removed_states.into_iter());
 
-    while let Some(mut active) = active_components.fetch_next() {
+    while let Some((entity, mut active)) = active_components.fetch_next() {
         active.component_ids.retain(|component_id| {
             *component_id
                 != components.component_id::<ComponentState<S, T>>().expect(
@@ -234,6 +259,10 @@ fn remove_component_state<S: Send + Sync + 'static, T: Component + Clone>(
                     .as_str(),
                 )
         });
+
+        if active.states_len() == 0 {
+            commands.entity(entity).remove::<Active<T>>();
+        }
     }
 }
 
