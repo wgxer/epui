@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::prelude::{Commands, Component, EventReader, Plugin, Query, With, World};
+use bevy::prelude::{Commands, Component, EventReader, Plugin, Query, Update, With, World};
 
 use crate::{
     event::{HoverEnterEvent, HoverExitEvent, PressEvent, ReleaseEvent},
@@ -22,42 +22,51 @@ impl Plugin for UiHoverStatePlugin {
             .add_component_state::<HoverState, ColoredElement>(())
             .add_component_state::<HoverState, CornersRoundness>(())
             .add_component_state::<HoverState, FontSize>(())
-            .add_systems((
-                transition_system::<Hovered<Position>>,
-                transition_system::<Hovered<Size>>,
-                transition_system::<Hovered<ColoredElement>>,
-                transition_system::<Hovered<CornersRoundness>>,
-                transition_system::<Hovered<FontSize>>,
-                remove_system::<Hovered<Position>>,
-                remove_system::<Hovered<Size>>,
-                remove_system::<Hovered<ColoredElement>>,
-                remove_system::<Hovered<CornersRoundness>>,
-                remove_system::<Hovered<FontSize>>,
-            ))
-            .add_systems((
-                hover_effect_system::<Position>,
-                hover_effect_system::<Size>,
-                hover_effect_system::<ColoredElement>,
-                hover_effect_system::<CornersRoundness>,
-                hover_effect_system::<FontSize>,
-                hover_effect_clear_system::<Position>,
-                hover_effect_clear_system::<Size>,
-                hover_effect_clear_system::<ColoredElement>,
-                hover_effect_clear_system::<CornersRoundness>,
-                hover_effect_clear_system::<FontSize>,
-            ))
-            .add_systems((
-                hover_effect_transition_in_system::<Position>,
-                hover_effect_transition_in_system::<Size>,
-                hover_effect_transition_in_system::<ColoredElement>,
-                hover_effect_transition_in_system::<CornersRoundness>,
-                hover_effect_transition_in_system::<FontSize>,
-                hover_effect_transition_out_system::<Position>,
-                hover_effect_transition_out_system::<Size>,
-                hover_effect_transition_out_system::<ColoredElement>,
-                hover_effect_transition_out_system::<CornersRoundness>,
-                hover_effect_transition_out_system::<FontSize>,
-            ));
+            .add_systems(
+                Update,
+                (
+                    transition_system::<Hovered<Position>>,
+                    transition_system::<Hovered<Size>>,
+                    transition_system::<Hovered<ColoredElement>>,
+                    transition_system::<Hovered<CornersRoundness>>,
+                    transition_system::<Hovered<FontSize>>,
+                    remove_system::<Hovered<Position>>,
+                    remove_system::<Hovered<Size>>,
+                    remove_system::<Hovered<ColoredElement>>,
+                    remove_system::<Hovered<CornersRoundness>>,
+                    remove_system::<Hovered<FontSize>>,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    hover_effect_system::<Position>,
+                    hover_effect_system::<Size>,
+                    hover_effect_system::<ColoredElement>,
+                    hover_effect_system::<CornersRoundness>,
+                    hover_effect_system::<FontSize>,
+                    hover_effect_clear_system::<Position>,
+                    hover_effect_clear_system::<Size>,
+                    hover_effect_clear_system::<ColoredElement>,
+                    hover_effect_clear_system::<CornersRoundness>,
+                    hover_effect_clear_system::<FontSize>,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    hover_effect_transition_in_system::<Position>,
+                    hover_effect_transition_in_system::<Size>,
+                    hover_effect_transition_in_system::<ColoredElement>,
+                    hover_effect_transition_in_system::<CornersRoundness>,
+                    hover_effect_transition_in_system::<FontSize>,
+                    hover_effect_transition_out_system::<Position>,
+                    hover_effect_transition_out_system::<Size>,
+                    hover_effect_transition_out_system::<ColoredElement>,
+                    hover_effect_transition_out_system::<CornersRoundness>,
+                    hover_effect_transition_out_system::<FontSize>,
+                ),
+            );
     }
 }
 

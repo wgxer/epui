@@ -1,8 +1,8 @@
 use bevy::{
     ecs::system::lifetimeless::{Read, SRes},
     prelude::{
-        error, Bundle, Color, Commands, Component, Entity, IntoSystemAppConfig, IntoSystemConfig,
-        Plugin, Query, ReflectComponent, Res, ResMut, Resource,
+        error, Bundle, Color, Commands, Component, Entity, IntoSystemConfigs, Plugin, Query,
+        ReflectComponent, Res, ResMut, Resource,
     },
     reflect::Reflect,
     render::{
@@ -13,7 +13,7 @@ use bevy::{
         render_resource::{CachedRenderPipelineId, MultisampleState, TextureFormat},
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, MainWorld, RenderApp, RenderSet,
+        Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     },
     utils::HashMap,
 };
@@ -110,7 +110,9 @@ impl TextRenderData {
 struct TextPipeline(CachedRenderPipelineId);
 
 impl Plugin for UiTextPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
+    fn build(&self, _app: &mut bevy::prelude::App) {}
+
+    fn finish(&self, app: &mut bevy::prelude::App) {
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -119,7 +121,7 @@ impl Plugin for UiTextPlugin {
         let swash_cache = SwashCache::new();
 
         let text_atlas = TextAtlas::new(
-            render_app.world.resource::<RenderDevice>().wgpu_device(),
+            render_app.world.resource::<RenderDevice>(),
             &render_app.world.resource::<RenderQueue>().0,
             TextureFormat::bevy_default(),
         );
@@ -127,9 +129,14 @@ impl Plugin for UiTextPlugin {
         render_app
             .insert_resource(TextRenderData::new(font_system, swash_cache, text_atlas))
             .add_render_command::<UiPhaseItem, RenderTextCommand>()
-            .add_system(extract_texts.in_schedule(ExtractSchedule))
-            .add_system(prepare_texts.in_set(RenderSet::Prepare))
-            .add_system(queue_texts.in_set(RenderSet::Queue));
+            .add_systems(ExtractSchedule, extract_texts)
+            .add_systems(
+                Render,
+                (
+                    prepare_texts.in_set(RenderSet::Prepare),
+                    queue_texts.in_set(RenderSet::Queue),
+                ),
+            );
     }
 }
 
@@ -212,6 +219,7 @@ fn prepare_texts(
                 &mut text_render_data.font_system,
                 &text.0,
                 glyphon::Attrs::new(),
+                glyphon::Shaping::Advanced,
             );
 
             for line in &mut buffer.0.lines {
@@ -242,6 +250,7 @@ fn prepare_texts(
                 &mut text_render_data.font_system,
                 &text.0,
                 glyphon::Attrs::new(),
+                glyphon::Shaping::Advanced,
             );
 
             for line in &mut buffer.lines {
@@ -308,8 +317,9 @@ fn queue_texts(
 
             text_areas_vec.push(TextArea {
                 buffer: &text_buffer.0,
-                left: position.x as i32,
-                top: position.y as i32,
+                left: position.x as f32,
+                top: position.y as f32,
+                scale: 1.0f32,
                 bounds: TextBounds {
                     left: visible_region.x as i32,
                     top: visible_region.y as i32,
@@ -331,7 +341,7 @@ fn queue_texts(
         } = text_render_data.as_mut();
 
         for (z_index, (phase_entity, text_areas_vec)) in text_areas_map {
-            let text_renderer = if let Some(text_renderer) = text_renderers.get_mut(&z_index) {
+            let text_renderer = if let Some(text_renderer) = text_renderers.get_mut(z_index) {
                 text_renderer
             } else {
                 text_renderers
@@ -339,7 +349,7 @@ fn queue_texts(
                         *z_index,
                         TextRenderer::new(
                             text_atlas,
-                            device.wgpu_device(),
+                            &device,
                             MultisampleState {
                                 count: 4,
                                 ..Default::default()
@@ -351,7 +361,7 @@ fn queue_texts(
             };
 
             if let Err(err) = text_renderer.prepare(
-                device.wgpu_device(),
+                &device,
                 &queue,
                 font_system,
                 text_atlas,
@@ -359,7 +369,7 @@ fn queue_texts(
                     width: viewport_size.x,
                     height: viewport_size.y,
                 },
-                &text_areas_vec,
+                text_areas_vec,
                 swash_cache,
             ) {
                 error!("Error during preparing text renderer: {:?}", err);

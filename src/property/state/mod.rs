@@ -12,8 +12,8 @@ use bevy::{
         world::{EntityMut, EntityRef},
     },
     prelude::{
-        Added, App, Commands, Component, CoreSet, Entity, IntoSystemConfig, Mut, Query,
-        RemovedComponents, Res, Resource,
+        Added, App, Commands, Component, Entity, Mut, PostUpdate, Query, RemovedComponents, Res,
+        Resource, Update,
     },
 };
 
@@ -295,10 +295,8 @@ impl AppComponentStateExt for App {
             self.world.init_component::<ComponentState<S, T>>();
         }
 
-        self.add_systems((
-            add_component_state::<S, T>,
-            remove_component_state::<S, T>.in_base_set(CoreSet::PostUpdate),
-        ));
+        self.add_systems(Update, add_component_state::<S, T>)
+            .add_systems(PostUpdate, remove_component_state::<S, T>);
 
         self
     }

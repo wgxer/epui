@@ -2,7 +2,7 @@ use std::any::Any;
 
 use bevy::{
     math::Vec2Swizzles,
-    prelude::{Bundle, Changed, Component, IVec2, Plugin, Query, Rect, Vec2},
+    prelude::{Bundle, Changed, Component, IVec2, Plugin, Query, Rect, Update, Vec2},
     reflect::Reflect,
 };
 
@@ -12,7 +12,7 @@ pub struct UiCollisionPlugin;
 
 impl Plugin for UiCollisionPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_system(update_box_collision);
+        app.add_systems(Update, update_box_collision);
     }
 }
 

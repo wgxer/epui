@@ -2,8 +2,8 @@ use bevy::{
     asset::{load_internal_asset, HandleId},
     ecs::system::lifetimeless::SRes,
     prelude::{
-        error, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemAppConfig,
-        IntoSystemConfig, Plugin, Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
+        error, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Plugin,
+        Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
     },
     render::{
         render_phase::{
@@ -18,7 +18,7 @@ use bevy::{
         },
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, MainWorld, RenderApp, RenderSet,
+        Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     },
 };
 use bytemuck_derive::{Pod, Zeroable};
@@ -36,7 +36,9 @@ use crate::{
 pub(crate) struct UiBoxPlugin;
 
 impl Plugin for UiBoxPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
+    fn build(&self, _app: &mut bevy::prelude::App) {}
+
+    fn finish(&self, app: &mut bevy::prelude::App) {
         let shader_handle = HandleId::random::<Shader>();
         load_internal_asset!(app, shader_handle, "box.wgsl", Shader::from_wgsl);
 
@@ -49,8 +51,8 @@ impl Plugin for UiBoxPlugin {
             .init_resource::<BoxPipeline>()
             .init_resource::<BoxBuffers>()
             .add_render_command::<UiPhaseItem, RenderBoxCommand>()
-            .add_system(extract_boxes.in_schedule(ExtractSchedule))
-            .add_system(queue_boxes.in_set(RenderSet::Queue));
+            .add_systems(ExtractSchedule, extract_boxes)
+            .add_systems(Render, queue_boxes.in_set(RenderSet::Queue));
     }
 }
 

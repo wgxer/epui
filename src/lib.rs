@@ -30,18 +30,18 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(redraw.on_startup())
-            .add_plugin(UiCameraPlugin)
-            .add_plugin(UiBoxPlugin)
-            .add_plugin(UiTextPlugin)
-            .add_plugin(UiTransitionPlugin)
-            .add_plugin(UiAutoRemovePlugin)
-            .add_plugin(UiCollisionPlugin)
-            .add_plugin(UiUpdatePropertiesPlugin)
-            .add_plugin(UiEventPlugin)
-            .add_plugin(UiHoverStatePlugin)
-            .add_plugin(UiClickStatePlugin)
-            .insert_resource(WinitSettings::desktop_app());
+        app.add_systems(Startup, redraw)
+            .add_plugins(UiCameraPlugin)
+            .add_plugins(UiBoxPlugin)
+            .add_plugins(UiTextPlugin)
+            .add_plugins(UiTransitionPlugin)
+            .add_plugins(UiAutoRemovePlugin)
+            .add_plugins(UiCollisionPlugin)
+            .add_plugins(UiUpdatePropertiesPlugin)
+            .add_plugins(UiEventPlugin)
+            .add_plugins(UiHoverStatePlugin)
+            .add_plugins(UiClickStatePlugin)
+            .insert_resource(WinitSettings::game());
     }
 }
 

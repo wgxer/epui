@@ -2,70 +2,62 @@ use std::ops::Range;
 
 use bevy::{
     core_pipeline::upscaling::UpscalingNode,
+    ecs::query::QueryItem,
     prelude::{
-        Bundle, Camera, Color, Commands, Component, Entity, EventReader, EventWriter,
-        GlobalTransform, IntoSystemAppConfig, IntoSystemConfig, OrthographicProjection, Plugin,
-        Query, QueryState, UVec2, With, World,
+        Bundle, Camera, Color, Commands, Component, Entity, EventReader, EventWriter, FromWorld,
+        GlobalTransform, IntoSystemConfigs, OrthographicProjection, Plugin, Query, UVec2, Update,
+        With, World,
     },
     render::{
         camera::{CameraRenderGraph, ExtractedCamera},
         extract_component::{ExtractComponent, ExtractComponentPlugin},
-        render_graph::{Node, NodeRunError, RenderGraph, SlotInfo, SlotType},
+        render_graph::{NodeRunError, RenderGraph, ViewNode, ViewNodeRunner},
         render_phase::{
             sort_phase_system, BatchedPhaseItem, CachedRenderPipelinePhaseItem, DrawFunctionId,
             DrawFunctions, PhaseItem, RenderPhase,
         },
         render_resource::{CachedRenderPipelineId, LoadOp, Operations, RenderPassDescriptor},
-        view::{ExtractedView, ViewTarget, VisibleEntities},
-        Extract, ExtractSchedule, RenderApp, RenderSet,
+        view::{ViewTarget, VisibleEntities},
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     },
     window::{RequestRedraw, WindowResized},
 };
 
 const GRAPH_NAME: &'static str = "ui_graph";
-const UI_INPUT_NAME: &'static str = "view";
 
 pub struct UiCameraPlugin;
 
 impl Plugin for UiCameraPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_system(redraw_on_resize)
-            .add_plugin(ExtractComponentPlugin::<UiCamera>::default());
+        app.add_systems(Update, redraw_on_resize)
+            .add_plugins(ExtractComponentPlugin::<UiCamera>::default());
+    }
 
+    fn finish(&self, app: &mut bevy::prelude::App) {
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
         render_app
             .init_resource::<DrawFunctions<UiPhaseItem>>()
-            .add_system(extract_ui_camera_phases.in_schedule(ExtractSchedule))
-            .add_system(sort_phase_system::<UiPhaseItem>.in_set(RenderSet::PhaseSort));
+            .add_systems(ExtractSchedule, extract_ui_camera_phases)
+            .add_systems(
+                Render,
+                sort_phase_system::<UiPhaseItem>.in_set(RenderSet::PhaseSort),
+            );
 
-        let ui_pass_node = UiPassNode::new(&mut render_app.world);
-        let upscaling_pass_node = UpscalingNode::new(&mut render_app.world);
+        let ui_pass_node = ViewNodeRunner::new(UiPassNode, &mut render_app.world);
+
+        let upscaling_pass_node = ViewNodeRunner::new(
+            UpscalingNode::from_world(&mut render_app.world),
+            &mut render_app.world,
+        );
         let mut world_render_graph = render_app.world.resource_mut::<RenderGraph>();
 
         let mut render_ui_graph = RenderGraph::default();
 
         let ui_node = render_ui_graph.add_node(UiPassNode::NAME, ui_pass_node);
         let upscaling_node = render_ui_graph.add_node("upscaling", upscaling_pass_node);
-
-        let ui_input_node =
-            render_ui_graph.set_input(vec![SlotInfo::new(UI_INPUT_NAME, SlotType::Entity)]);
-
-        render_ui_graph.add_slot_edge(
-            ui_input_node,
-            UI_INPUT_NAME,
-            ui_node,
-            UiPassNode::IN_VIEW_ENTITY,
-        );
-
-        render_ui_graph.add_slot_edge(
-            ui_input_node,
-            UI_INPUT_NAME,
-            upscaling_node,
-            UpscalingNode::IN_VIEW,
-        );
 
         render_ui_graph.add_node_edge(ui_node, upscaling_node);
         world_render_graph.add_sub_graph(GRAPH_NAME, render_ui_graph);
@@ -177,46 +169,27 @@ fn extract_ui_camera_phases(
     }
 }
 
-pub struct UiPassNode(
-    QueryState<
-        (
-            &'static ExtractedCamera,
-            &'static RenderPhase<UiPhaseItem>,
-            &'static ViewTarget,
-        ),
-        (With<ExtractedView>, With<UiCamera>),
-    >,
-);
+pub struct UiPassNode;
 
 impl UiPassNode {
     const NAME: &'static str = "ui_pass_node";
-    const IN_VIEW_ENTITY: &'static str = "view";
-
-    pub fn new(world: &mut World) -> UiPassNode {
-        UiPassNode(world.query_filtered())
-    }
 }
 
-impl Node for UiPassNode {
-    fn input(&self) -> Vec<SlotInfo> {
-        vec![SlotInfo::new(Self::IN_VIEW_ENTITY, SlotType::Entity)]
-    }
-
-    fn update(&mut self, world: &mut World) {
-        self.0.update_archetypes(world);
-    }
+impl ViewNode for UiPassNode {
+    type ViewQuery = (
+        &'static ExtractedCamera,
+        &'static RenderPhase<UiPhaseItem>,
+        &'static ViewTarget,
+    );
 
     fn run(
         &self,
         graph: &mut bevy::render::render_graph::RenderGraphContext,
         render_context: &mut bevy::render::renderer::RenderContext,
+        (camera, ui_phase, view_target): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let view_entity = graph.get_input_entity(Self::IN_VIEW_ENTITY)?;
-
-        let Ok((camera, ui_phase, view_target)) = self.0.get_manual(world, view_entity) else {
-            return Ok(());
-        };
+        let view_entity = graph.view_entity();
 
         {
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {

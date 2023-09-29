@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::prelude::{Commands, Component, EventReader, Plugin, Query, With, World};
+use bevy::prelude::{Commands, Component, EventReader, Plugin, Query, Update, With, World};
 
 use crate::{
     event::{PressEvent, ReleaseEvent},
@@ -22,42 +22,51 @@ impl Plugin for UiClickStatePlugin {
             .add_component_state::<ClickState, ColoredElement>(())
             .add_component_state::<ClickState, CornersRoundness>(())
             .add_component_state::<ClickState, FontSize>(())
-            .add_systems((
-                transition_system::<Clicked<Position>>,
-                transition_system::<Clicked<Size>>,
-                transition_system::<Clicked<ColoredElement>>,
-                transition_system::<Clicked<CornersRoundness>>,
-                transition_system::<Clicked<FontSize>>,
-                remove_system::<Clicked<Position>>,
-                remove_system::<Clicked<Size>>,
-                remove_system::<Clicked<ColoredElement>>,
-                remove_system::<Clicked<CornersRoundness>>,
-                remove_system::<Clicked<FontSize>>,
-            ))
-            .add_systems((
-                click_effect_system::<Position>,
-                click_effect_system::<Size>,
-                click_effect_system::<ColoredElement>,
-                click_effect_system::<CornersRoundness>,
-                click_effect_system::<FontSize>,
-                click_effect_clear_system::<Position>,
-                click_effect_clear_system::<Size>,
-                click_effect_clear_system::<ColoredElement>,
-                click_effect_clear_system::<CornersRoundness>,
-                click_effect_clear_system::<FontSize>,
-            ))
-            .add_systems((
-                click_effect_transition_in_system::<Position>,
-                click_effect_transition_in_system::<Size>,
-                click_effect_transition_in_system::<ColoredElement>,
-                click_effect_transition_in_system::<CornersRoundness>,
-                click_effect_transition_in_system::<FontSize>,
-                click_effect_transition_out_system::<Position>,
-                click_effect_transition_out_system::<Size>,
-                click_effect_transition_out_system::<ColoredElement>,
-                click_effect_transition_out_system::<CornersRoundness>,
-                click_effect_transition_out_system::<FontSize>,
-            ));
+            .add_systems(
+                Update,
+                (
+                    transition_system::<Clicked<Position>>,
+                    transition_system::<Clicked<Size>>,
+                    transition_system::<Clicked<ColoredElement>>,
+                    transition_system::<Clicked<CornersRoundness>>,
+                    transition_system::<Clicked<FontSize>>,
+                    remove_system::<Clicked<Position>>,
+                    remove_system::<Clicked<Size>>,
+                    remove_system::<Clicked<ColoredElement>>,
+                    remove_system::<Clicked<CornersRoundness>>,
+                    remove_system::<Clicked<FontSize>>,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    click_effect_system::<Position>,
+                    click_effect_system::<Size>,
+                    click_effect_system::<ColoredElement>,
+                    click_effect_system::<CornersRoundness>,
+                    click_effect_system::<FontSize>,
+                    click_effect_clear_system::<Position>,
+                    click_effect_clear_system::<Size>,
+                    click_effect_clear_system::<ColoredElement>,
+                    click_effect_clear_system::<CornersRoundness>,
+                    click_effect_clear_system::<FontSize>,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    click_effect_transition_in_system::<Position>,
+                    click_effect_transition_in_system::<Size>,
+                    click_effect_transition_in_system::<ColoredElement>,
+                    click_effect_transition_in_system::<CornersRoundness>,
+                    click_effect_transition_in_system::<FontSize>,
+                    click_effect_transition_out_system::<Position>,
+                    click_effect_transition_out_system::<Size>,
+                    click_effect_transition_out_system::<ColoredElement>,
+                    click_effect_transition_out_system::<CornersRoundness>,
+                    click_effect_transition_out_system::<FontSize>,
+                ),
+            );
     }
 }
 

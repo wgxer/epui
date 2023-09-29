@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{Component, Entity, Parent, Plugin, Query, ReflectComponent, With},
+    prelude::{Component, Entity, Parent, Plugin, Query, ReflectComponent, Update, With},
     reflect::Reflect,
     utils::HashMap,
 };
@@ -10,7 +10,7 @@ pub struct UiUpdatePropertiesPlugin;
 
 impl Plugin for UiUpdatePropertiesPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_systems((update_z, update_visible_region));
+        app.add_systems(Update, (update_z, update_visible_region));
     }
 }
 

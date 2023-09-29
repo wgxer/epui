@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bevy::{
     prelude::{
-        info, App, BuildChildren, Color, Commands, Component, Entity, EventReader,
-        IntoSystemAppConfig, Query, With,
+        info, App, BuildChildren, Color, Commands, Component, Entity, EventReader, Query, Startup,
+        Update, With,
     },
     DefaultPlugins,
 };
@@ -19,10 +19,10 @@ use epui::{
 
 fn main() {
     App::new()
-        .add_system(setup.on_startup())
+        .add_systems(Startup, setup)
         .add_plugins(DefaultPlugins)
-        .add_plugin(UiPlugin)
-        .add_system(on_button_click)
+        .add_plugins(UiPlugin)
+        .add_systems(Update, on_button_click)
         .run();
 }
 

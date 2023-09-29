@@ -4,8 +4,8 @@ use bevy::{
         ButtonState,
     },
     prelude::{
-        warn, Commands, Component, Entity, EventReader, EventWriter, MouseButton, Plugin, Query,
-        Rect, Vec2, With, Without,
+        warn, Commands, Component, Entity, Event, EventReader, EventWriter, MouseButton, Plugin,
+        Query, Rect, Update, With, Without,
     },
     window::{PrimaryWindow, Window},
 };
@@ -21,19 +21,22 @@ impl Plugin for UiEventPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_event::<HoverEnterEvent>()
             .add_event::<HoverExitEvent>()
-            .add_system(on_mouse_move)
             .add_event::<PressEvent>()
             .add_event::<ReleaseEvent>()
             .add_event::<ClickEvent>()
-            .add_system(on_mouse_click_start)
-            .add_system(on_mouse_click_end);
+            .add_systems(
+                Update,
+                (on_mouse_move, on_mouse_click_start, on_mouse_click_end),
+            );
     }
 }
 
+#[derive(Event)]
 pub struct HoverEnterEvent {
     pub element: Entity,
 }
 
+#[derive(Event)]
 pub struct HoverExitEvent {
     pub element: Entity,
 }
@@ -66,11 +69,7 @@ fn on_mouse_move(
         return;
     };
 
-    let cursor_position = Vec2::new(
-        cursor_position.x,
-        primary_window.height() - cursor_position.y,
-    )
-    .round();
+    let cursor_position = cursor_position.round();
 
     if mouse_motion_events.iter().next().is_some() {
         for (entity, position, size, collision, visible_region) in elements_not_hovered.iter() {
@@ -111,14 +110,17 @@ fn on_mouse_move(
     }
 }
 
+#[derive(Event)]
 pub struct PressEvent {
     pub element: Entity,
 }
 
+#[derive(Event)]
 pub struct ReleaseEvent {
     pub element: Entity,
 }
 
+#[derive(Event)]
 pub struct ClickEvent {
     pub element: Entity,
 }
@@ -143,11 +145,7 @@ fn on_mouse_click_start(
         return;
     };
 
-    let cursor_position = Vec2::new(
-        cursor_position.x,
-        primary_window.height() - cursor_position.y,
-    )
-    .round();
+    let cursor_position = cursor_position.round();
 
     for mouse_click_event in mouse_click_events.iter() {
         if mouse_click_event.button == MouseButton::Left {
@@ -196,11 +194,7 @@ fn on_mouse_click_end(
         return;
     };
 
-    let cursor_position = Vec2::new(
-        cursor_position.x,
-        primary_window.height() - cursor_position.y,
-    )
-    .round();
+    let cursor_position = cursor_position.round();
 
     for mouse_click_event in mouse_click_events.iter() {
         if mouse_click_event.button == MouseButton::Left {

@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use crate::{element::text::FontSize, property::*};
 use bevy::{
-    prelude::{
-        Commands, Component, CoreSet, Entity, EventWriter, IntoSystemConfigs, Plugin, Query, Vec2,
-        Vec4,
-    },
+    prelude::{Commands, Component, Entity, EventWriter, Plugin, PostUpdate, Query, Vec2, Vec4},
     utils::Instant,
     window::RequestRedraw,
 };
@@ -17,14 +14,14 @@ pub(crate) struct UiTransitionPlugin;
 impl Plugin for UiTransitionPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(
+            PostUpdate,
             (
                 transition_system::<Position>,
                 transition_system::<Size>,
                 transition_system::<ColoredElement>,
                 transition_system::<CornersRoundness>,
                 transition_system::<FontSize>,
-            )
-                .in_base_set(CoreSet::PostUpdate),
+            ),
         );
     }
 }

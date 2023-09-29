@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::{
-    prelude::{App, Color, Commands, IntoSystemAppConfig},
+    prelude::{App, Color, Commands, Startup},
     DefaultPlugins,
 };
 
@@ -9,9 +9,9 @@ use epui::prelude::*;
 
 fn main() {
     App::new()
-        .add_system(setup.on_startup())
+        .add_systems(Startup, setup)
         .add_plugins(DefaultPlugins)
-        .add_plugin(UiPlugin)
+        .add_plugins(UiPlugin)
         .run();
 }
 

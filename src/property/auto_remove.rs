@@ -2,10 +2,7 @@ use std::{marker::PhantomData, time::Duration};
 
 use crate::{element::text::FontSize, property::*};
 use bevy::{
-    prelude::{
-        Commands, Component, CoreSet, Entity, EventWriter, IntoSystemConfigs, Plugin, Query, With,
-        Without,
-    },
+    prelude::{Commands, Component, Entity, EventWriter, Plugin, PostUpdate, Query, With, Without},
     utils::Instant,
     window::RequestRedraw,
 };
@@ -15,14 +12,14 @@ pub(crate) struct UiAutoRemovePlugin;
 impl Plugin for UiAutoRemovePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(
+            PostUpdate,
             (
                 remove_system::<Position>,
                 remove_system::<Size>,
                 remove_system::<ColoredElement>,
                 remove_system::<CornersRoundness>,
                 remove_system::<FontSize>,
-            )
-                .in_base_set(CoreSet::PostUpdate),
+            ),
         );
     }
 }
