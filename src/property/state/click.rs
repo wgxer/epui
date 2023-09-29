@@ -142,10 +142,13 @@ pub fn click_effect_transition_in_system<T: PropertyTransition<T> + Component + 
 
             let entity_ref = world.entity(event.element);
 
-            commands.entity(event.element).insert((
-                Clicked::new(active_value.active_or_base(&entity_ref, base_value).clone()),
-                Transition::new(Clicked::new(effect.value.clone()), effect.in_duration),
-            ));
+            commands
+                .entity(event.element)
+                .insert((
+                    Clicked::new(active_value.active_or_base(&entity_ref, base_value).clone()),
+                    Transition::new(Clicked::new(effect.value.clone()), effect.in_duration),
+                ))
+                .remove::<AutoRemove<Clicked<T>>>();
         }
     }
 }
