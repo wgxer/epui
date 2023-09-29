@@ -1,4 +1,5 @@
 pub mod click;
+pub mod hover;
 
 use std::{
     marker::PhantomData,

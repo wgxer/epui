@@ -1,8 +1,11 @@
 use bevy::{
-    input::{mouse::MouseButtonInput, ButtonState},
+    input::{
+        mouse::{MouseButtonInput, MouseMotion},
+        ButtonState,
+    },
     prelude::{
         warn, Commands, Component, Entity, EventReader, EventWriter, MouseButton, Plugin, Query,
-        Rect, Vec2, With,
+        Rect, Vec2, With, Without,
     },
     window::{PrimaryWindow, Window},
 };
@@ -16,11 +19,95 @@ pub struct UiEventPlugin;
 
 impl Plugin for UiEventPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_event::<PressEvent>()
+        app.add_event::<HoverEnterEvent>()
+            .add_event::<HoverExitEvent>()
+            .add_system(on_mouse_move)
+            .add_event::<PressEvent>()
             .add_event::<ReleaseEvent>()
             .add_event::<ClickEvent>()
             .add_system(on_mouse_click_start)
             .add_system(on_mouse_click_end);
+    }
+}
+
+pub struct HoverEnterEvent {
+    pub element: Entity,
+}
+
+pub struct HoverExitEvent {
+    pub element: Entity,
+}
+
+#[derive(Component)]
+pub struct ElementHovered;
+
+fn on_mouse_move(
+    mut commands: Commands,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
+    elements_not_hovered: Query<
+        (Entity, &Position, &Size, &Collision, Option<&VisibleRegion>),
+        Without<ElementHovered>,
+    >,
+    elements_hovered: Query<
+        (Entity, &Position, &Size, &Collision, Option<&VisibleRegion>),
+        With<ElementHovered>,
+    >,
+    mut mouse_motion_events: EventReader<MouseMotion>,
+    mut hover_enter_events: EventWriter<HoverEnterEvent>,
+    mut hover_exit_events: EventWriter<HoverExitEvent>,
+) {
+    let Ok(primary_window) = primary_window.get_single() else {
+        warn!("Couldn't get primary window");
+
+        return;
+    };
+
+    let Some(cursor_position) = primary_window.cursor_position() else {
+        return;
+    };
+
+    let cursor_position = Vec2::new(
+        cursor_position.x,
+        primary_window.height() - cursor_position.y,
+    )
+    .round();
+
+    if mouse_motion_events.iter().next().is_some() {
+        for (entity, position, size, collision, visible_region) in elements_not_hovered.iter() {
+            let visible_region = match visible_region {
+                Some(visible_region) => visible_region.clone(),
+                None => VisibleRegion::new(position.x, position.y, size.width, size.height),
+            };
+
+            if Rect::from(visible_region).contains(cursor_position) {
+                if collision
+                    .0
+                    .contains(position.clone(), size.clone(), cursor_position)
+                {
+                    commands.entity(entity).insert(ElementHovered);
+                    hover_enter_events.send(HoverEnterEvent { element: entity });
+                }
+            }
+        }
+
+        for (entity, position, size, collision, visible_region) in elements_hovered.iter() {
+            let visible_region = match visible_region {
+                Some(visible_region) => visible_region.clone(),
+                None => VisibleRegion::new(position.x, position.y, size.width, size.height),
+            };
+
+            if Rect::from(visible_region).contains(cursor_position) {
+                if collision
+                    .0
+                    .contains(position.clone(), size.clone(), cursor_position)
+                {
+                    continue;
+                }
+            }
+
+            commands.entity(entity).remove::<ElementHovered>();
+            hover_exit_events.send(HoverExitEvent { element: entity });
+        }
     }
 }
 

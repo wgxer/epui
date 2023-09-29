@@ -17,8 +17,10 @@ use bevy::{prelude::*, window::RequestRedraw, winit::WinitSettings};
 use element::{r#box::UiBoxPlugin, text::UiTextPlugin};
 use event::UiEventPlugin;
 use property::{
-    auto_remove::UiAutoRemovePlugin, collision::UiCollisionPlugin,
-    state::click::UiClickStatePlugin, transition::UiTransitionPlugin,
+    auto_remove::UiAutoRemovePlugin,
+    collision::UiCollisionPlugin,
+    state::{click::UiClickStatePlugin, hover::UiHoverStatePlugin},
+    transition::UiTransitionPlugin,
     update::UiUpdatePropertiesPlugin,
 };
 
@@ -37,6 +39,7 @@ impl Plugin for UiPlugin {
             .add_plugin(UiCollisionPlugin)
             .add_plugin(UiUpdatePropertiesPlugin)
             .add_plugin(UiEventPlugin)
+            .add_plugin(UiHoverStatePlugin)
             .add_plugin(UiClickStatePlugin)
             .insert_resource(WinitSettings::desktop_app());
     }

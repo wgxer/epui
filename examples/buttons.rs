@@ -11,7 +11,10 @@ use bevy::{
 use epui::{
     event::ClickEvent,
     prelude::*,
-    property::{collision::BoxCollisionBundle, state::click::ClickEffectTransition},
+    property::{
+        collision::BoxCollisionBundle,
+        state::{click::ClickEffectTransition, hover::HoverEffectTransition},
+    },
 };
 
 fn main() {
@@ -42,6 +45,11 @@ fn setup(mut commands: Commands) {
             CornersRoundness::from_scalar(1.0f32),
             ClickEffectTransition::new(
                 ColoredElement::new(Color::DARK_GREEN),
+                Duration::from_millis(200),
+                Duration::from_millis(400),
+            ),
+            HoverEffectTransition::new(
+                ColoredElement::new(Color::DARK_GRAY),
                 Duration::from_millis(100),
                 Duration::from_millis(200),
             ),
@@ -74,6 +82,11 @@ fn setup(mut commands: Commands) {
             },
             ClickEffectTransition::new(
                 ColoredElement::new(Color::DARK_GREEN),
+                Duration::from_millis(200),
+                Duration::from_millis(400),
+            ),
+            HoverEffectTransition::new(
+                ColoredElement::new(Color::DARK_GRAY),
                 Duration::from_millis(100),
                 Duration::from_millis(200),
             ),
