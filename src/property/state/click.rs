@@ -77,7 +77,13 @@ pub type Clicked<T> = ComponentState<ClickState, T>;
 
 #[derive(Component)]
 pub struct ClickEffect<T: Component + Clone> {
-    value: T,
+    pub value: T,
+}
+
+impl<T: Component + Clone> ClickEffect<T> {
+    pub fn new(value: T) -> ClickEffect<T> {
+        ClickEffect { value }
+    }
 }
 
 #[derive(Component)]

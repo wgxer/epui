@@ -77,7 +77,13 @@ pub type Hovered<T> = ComponentState<HoverState, T>;
 
 #[derive(Component)]
 pub struct HoverEffect<T: Component + Clone> {
-    value: T,
+    pub value: T,
+}
+
+impl<T: Component + Clone> HoverEffect<T> {
+    pub fn new(value: T) -> HoverEffect<T> {
+        HoverEffect { value }
+    }
 }
 
 #[derive(Component)]
