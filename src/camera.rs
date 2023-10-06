@@ -106,6 +106,7 @@ impl Default for UiCameraBundle {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct UiPhaseItem {
     pub entity: Entity,
     pub z_index: u32,

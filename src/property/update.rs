@@ -30,7 +30,11 @@ fn update_z(mut z_levels: Query<(Entity, &mut ZLevel, Option<(&AutoZUpdate, &Par
     for (_, mut z_level, auto_update_data) in z_levels.iter_mut() {
         if let Some((_, parent)) = auto_update_data {
             if let Some(parent_z_level) = z_levels_map.get(&parent.get()) {
-                z_level.0 = *parent_z_level + 1;
+                let new_z_level = *parent_z_level + 1;
+
+                if z_level.0 != new_z_level {
+                    z_level.0 = new_z_level;
+                }
             }
         }
     }
@@ -50,22 +54,36 @@ fn update_visible_region(
     // TODO: Use events & filters to update VisibleRegion instead of updating always
 
     for (mut visible_region, parent) in visible_regions.iter_mut() {
-        if let Some(parent) = parent {
-            let Ok((parent_position, parent_size)) = regions.get(parent.get()) else {
-                continue;
-            };
+        let new_visible_region = if let Some(parent) = parent {
+            if let Ok((parent_position, parent_size)) = regions.get(parent.get()) {
+                VisibleRegion {
+                    x: parent_position.x,
+                    y: parent_position.y,
 
-            visible_region.x = parent_position.x;
-            visible_region.y = parent_position.y;
+                    width: parent_size.width,
+                    height: parent_size.height,
+                }
+            } else {
+                VisibleRegion {
+                    x: 0,
+                    y: 0,
 
-            visible_region.width = parent_size.width;
-            visible_region.height = parent_size.height;
+                    width: u32::MAX,
+                    height: u32::MAX,
+                }
+            }
         } else {
-            visible_region.x = 0;
-            visible_region.y = 0;
+            VisibleRegion {
+                x: 0,
+                y: 0,
 
-            visible_region.width = u32::MAX;
-            visible_region.height = u32::MAX;
+                width: u32::MAX,
+                height: u32::MAX,
+            }
+        };
+
+        if *visible_region != new_visible_region {
+            *visible_region = new_visible_region;
         }
     }
 }

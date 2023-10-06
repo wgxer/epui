@@ -1,8 +1,8 @@
 use bevy::{
     ecs::system::lifetimeless::{Read, SRes},
     prelude::{
-        error, Bundle, Color, Commands, Component, Entity, IntoSystemConfigs, Plugin, Query,
-        ReflectComponent, Res, ResMut, Resource,
+        error, Bundle, Changed, Color, Commands, Component, Entity, IntoSystemConfigs, Or, Plugin,
+        Query, ReflectComponent, Res, ResMut, Resource, Without,
     },
     reflect::Reflect,
     render::{
@@ -83,6 +83,9 @@ pub struct UiTextPlugin;
 #[derive(Component)]
 struct UiTextBuffer(glyphon::Buffer);
 
+#[derive(Component)]
+pub struct PreparedText;
+
 #[derive(Resource)]
 struct TextRenderData {
     font_system: FontSystem,
@@ -128,6 +131,7 @@ impl Plugin for UiTextPlugin {
 
         render_app
             .insert_resource(TextRenderData::new(font_system, swash_cache, text_atlas))
+            .init_resource::<TextCachedUiPhases>()
             .add_render_command::<UiPhaseItem, RenderTextCommand>()
             .add_systems(ExtractSchedule, extract_texts)
             .add_systems(
@@ -144,23 +148,41 @@ fn extract_texts(
     main_world: Res<MainWorld>,
     mut commands: Commands,
     texts: Extract<
-        Query<(
-            Entity,
-            &UiText,
-            &FontSize,
-            &Position,
-            &Size,
-            &VisibleRegion,
-            &ColoredElement,
-            Option<&ZLevel>,
-            Option<&Active<UiText>>,
-            Option<&Active<FontSize>>,
-            Option<&Active<Position>>,
-            Option<&Active<Size>>,
-            Option<&Active<VisibleRegion>>,
-            Option<&Active<ColoredElement>>,
-            Option<&Active<ZLevel>>,
-        )>,
+        Query<
+            (
+                Entity,
+                &UiText,
+                &FontSize,
+                &Position,
+                &Size,
+                &VisibleRegion,
+                &ColoredElement,
+                Option<&ZLevel>,
+                Option<&Active<UiText>>,
+                Option<&Active<FontSize>>,
+                Option<&Active<Position>>,
+                Option<&Active<Size>>,
+                Option<&Active<VisibleRegion>>,
+                Option<&Active<ColoredElement>>,
+                Option<&Active<ZLevel>>,
+            ),
+            Or<(
+                Changed<UiText>,
+                Changed<FontSize>,
+                Changed<Position>,
+                Changed<Size>,
+                Changed<VisibleRegion>,
+                Changed<ColoredElement>,
+                Changed<ZLevel>,
+                Changed<Active<UiText>>,
+                Changed<Active<FontSize>>,
+                Changed<Active<Position>>,
+                Changed<Active<Size>>,
+                Changed<Active<VisibleRegion>>,
+                Changed<Active<ColoredElement>>,
+                Changed<Active<ZLevel>>,
+            )>,
+        >,
     >,
 ) {
     for (
@@ -181,6 +203,7 @@ fn extract_texts(
         z_level,
     ) in texts.iter()
     {
+        bevy::log::info!("text_update");
         let entity_ref = main_world.entity(entity);
 
         let (text, font_size, position, size, visible_region, colored_element, z_level) = (
@@ -196,23 +219,36 @@ fn extract_texts(
                 .cloned(),
         );
 
-        commands.get_or_spawn(entity).insert((
-            text.clone(),
-            font_size.clone(),
-            position.clone(),
-            z_level.unwrap_or_default().clone(),
-            size.clone(),
-            visible_region.clone(),
-            colored_element.clone(),
-        ));
+        commands
+            .get_or_spawn(entity)
+            .insert((
+                text.clone(),
+                font_size.clone(),
+                position.clone(),
+                z_level.unwrap_or_default().clone(),
+                size.clone(),
+                visible_region.clone(),
+                colored_element.clone(),
+            ))
+            .remove::<PreparedText>();
     }
 }
 
 fn prepare_texts(
     mut commands: Commands,
     mut text_render_data: ResMut<TextRenderData>,
-    mut texts: Query<(Entity, &Size, &UiText, &FontSize, Option<&mut UiTextBuffer>)>,
+    mut text_cached_ui_phases: ResMut<TextCachedUiPhases>,
+    mut texts: Query<
+        (Entity, &Size, &UiText, &FontSize, Option<&mut UiTextBuffer>),
+        Without<PreparedText>,
+    >,
 ) {
+    if texts.is_empty() {
+        return;
+    }
+
+    text_cached_ui_phases.phases.clear();
+
     for (entity, size, text, font_size, buffer) in texts.iter_mut() {
         if let Some(mut buffer) = buffer {
             buffer.0.set_text(
@@ -240,6 +276,8 @@ fn prepare_texts(
             buffer
                 .0
                 .shape_until_scroll(&mut text_render_data.font_system);
+
+            commands.entity(entity).insert(PreparedText);
         } else if let Some(mut commands) = commands.get_entity(entity) {
             let mut buffer = glyphon::Buffer::new(
                 &mut text_render_data.font_system,
@@ -264,16 +302,23 @@ fn prepare_texts(
             );
 
             buffer.shape_until_scroll(&mut text_render_data.font_system);
-            commands.insert(UiTextBuffer(buffer));
+            commands.insert((UiTextBuffer(buffer), PreparedText));
         } else {
             continue;
         }
     }
 }
 
+#[derive(Resource, Default)]
+struct TextCachedUiPhases {
+    phases: HashMap<u32, UiPhaseItem>,
+}
+
 fn queue_texts(
+    mut commands: Commands,
     mut view_query: Query<(&PhysicalViewportSize, &mut RenderPhase<UiPhaseItem>)>,
     mut text_render_data: ResMut<TextRenderData>,
+    mut text_cached_ui_phases: ResMut<TextCachedUiPhases>,
     texts: Query<(
         Entity,
         &UiTextBuffer,
@@ -290,6 +335,18 @@ fn queue_texts(
         let Some(viewport_size) = viewport_size.0 else {
             continue;
         };
+
+        if !text_cached_ui_phases.phases.is_empty() {
+            for (_, phase) in &text_cached_ui_phases.phases {
+                ui_phase.add(phase.clone());
+
+                commands
+                    .get_or_spawn(phase.entity)
+                    .insert(ZLevel(phase.z_index));
+            }
+
+            continue;
+        }
 
         let mut text_areas_map = HashMap::new();
 
@@ -314,6 +371,8 @@ fn queue_texts(
                 .color
                 .as_rgba_f32()
                 .map(|x| (x * 255.0f32) as u8);
+
+            bevy::log::info!("TextBufferLen: {:#?}", text_buffer.0.lines.len());
 
             text_areas_vec.push(TextArea {
                 buffer: &text_buffer.0,
@@ -380,13 +439,16 @@ fn queue_texts(
                 continue;
             };
 
-            ui_phase.add(UiPhaseItem {
+            let phase = UiPhaseItem {
                 entity: phase_entity,
                 batch_range: None,
                 cached_render_pipeline_id: CachedRenderPipelineId::INVALID,
                 z_index: *z_index,
                 draw_function: draw_function_id,
-            });
+            };
+
+            text_cached_ui_phases.phases.insert(*z_index, phase.clone());
+            ui_phase.add(phase);
         }
     }
 }
@@ -405,18 +467,22 @@ impl<P: PhaseItem> RenderCommand<P> for RenderTextCommand {
         param: bevy::ecs::system::SystemParamItem<'w, '_, Self::Param>,
         pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
     ) -> bevy::render::render_phase::RenderCommandResult {
-        let param = param.into_inner();
+        let span = bevy::log::debug_span!("RenderCommands: RenderTextCommand");
 
-        let Some(text_renderer) = param.text_renderers.get(&z_level.0) else {
-            error!("Couldn't find a text renderer for z level: {}", z_level.0);
-            return RenderCommandResult::Failure;
-        };
+        span.in_scope(|| {
+            let param = param.into_inner();
 
-        if let Err(err) = text_renderer.render(&param.text_atlas, pass) {
-            error!("Error during rendering text: {:?}", err);
-            RenderCommandResult::Failure
-        } else {
-            RenderCommandResult::Success
-        }
+            let Some(text_renderer) = param.text_renderers.get(&z_level.0) else {
+                error!("Couldn't find a text renderer for z level: {}", z_level.0);
+                return RenderCommandResult::Failure;
+            };
+
+            if let Err(err) = text_renderer.render(&param.text_atlas, pass) {
+                error!("Error during rendering text: {:?}", err);
+                RenderCommandResult::Failure
+            } else {
+                RenderCommandResult::Success
+            }
+        })
     }
 }
