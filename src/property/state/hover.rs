@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::prelude::{Commands, Component, EventReader, Plugin, Query, Update, With, World};
 
 use crate::{
-    event::{HoverEnterEvent, HoverExitEvent, PressEvent, ReleaseEvent},
+    event::{HoverEnterEvent, HoverExitEvent},
     prelude::*,
     property::{
         auto_remove::{remove_system, AutoRemove},
@@ -111,7 +111,7 @@ impl<T: PropertyTransition<T> + Component + Clone> HoverEffectTransition<T> {
 
 pub fn hover_effect_system<T: Component + Clone>(
     mut commands: Commands,
-    mut events: EventReader<PressEvent>,
+    mut events: EventReader<HoverEnterEvent>,
     effects: Query<&HoverEffect<T>>,
 ) {
     if !effects.is_empty() {
@@ -129,7 +129,7 @@ pub fn hover_effect_system<T: Component + Clone>(
 
 pub fn hover_effect_clear_system<T: Component + Clone>(
     mut commands: Commands,
-    mut events: EventReader<ReleaseEvent>,
+    mut events: EventReader<HoverExitEvent>,
     effects: Query<(), (With<HoverEffect<T>>, With<Hovered<T>>)>,
 ) {
     if !effects.is_empty() {
