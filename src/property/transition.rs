@@ -2,8 +2,10 @@ use std::time::Duration;
 
 use crate::{element::text::FontSize, property::*};
 use bevy::{
-    prelude::{Commands, Component, Entity, EventWriter, Plugin, PostUpdate, Query, Vec2, Vec4},
-    utils::Instant,
+    prelude::{
+        Commands, Component, Entity, EventWriter, Plugin, PostUpdate, Query, Res, Vec2, Vec4,
+    },
+    time::{Time, Timer, TimerMode},
     window::RequestRedraw,
 };
 
@@ -31,8 +33,7 @@ pub struct Transition<T: PropertyTransition<T> + Component + Clone> {
     from: Option<T>,
     to: T,
 
-    start_time: Instant,
-    duration: f32,
+    timer: Timer,
 }
 
 impl<T: PropertyTransition<T> + Component + Clone> Transition<T> {
@@ -40,26 +41,22 @@ impl<T: PropertyTransition<T> + Component + Clone> Transition<T> {
         Transition {
             from: None,
             to,
-            start_time: Instant::now(),
-            duration: duration.as_secs_f32(),
+            timer: Timer::new(duration, TimerMode::Once),
         }
-    }
-
-    pub fn start_from_now(&mut self) {
-        self.start_time = Instant::now();
     }
 }
 
 pub fn transition_system<T: PropertyTransition<T> + Component + Clone>(
     mut commands: Commands,
+    time: Res<Time>,
     mut transitions: Query<(Entity, &mut Transition<T>, &mut T)>,
     mut redraw_requester: EventWriter<RequestRedraw>,
 ) {
     let mut request_redraw = false;
 
     for (transition_entity, mut transition, mut transition_property) in transitions.iter_mut() {
-        let elapsed = transition.start_time.elapsed().as_secs_f32();
-        let progress = f32::min(1.0f32, elapsed / transition.duration);
+        transition.timer.tick(time.delta());
+        let progress = f32::min(1.0f32, transition.timer.percent());
 
         let new_property_value = T::transition(
             progress,
