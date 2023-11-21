@@ -2,7 +2,7 @@ use bevy::{
     ecs::system::lifetimeless::{Read, SRes},
     prelude::{
         error, Bundle, Changed, Color, Commands, Component, Entity, IntoSystemConfigs, Or, Plugin,
-        Query, ReflectComponent, Res, ResMut, Resource, Without,
+        Query, ReflectComponent, Res, ResMut, Resource, With,
     },
     reflect::Reflect,
     render::{
@@ -83,9 +83,6 @@ pub struct UiTextPlugin;
 #[derive(Component)]
 struct UiTextBuffer(glyphon::Buffer);
 
-#[derive(Component)]
-pub struct PreparedText;
-
 #[derive(Resource)]
 struct TextRenderData {
     font_system: FontSystem,
@@ -148,24 +145,28 @@ fn extract_texts(
     main_world: Res<MainWorld>,
     mut commands: Commands,
     texts: Extract<
-        Query<
-            (
-                Entity,
-                &UiText,
-                &FontSize,
-                &Position,
-                &Size,
-                &VisibleRegion,
-                &ColoredElement,
-                Option<&ZLevel>,
-                Option<&Active<UiText>>,
-                Option<&Active<FontSize>>,
-                Option<&Active<Position>>,
-                Option<&Active<Size>>,
-                Option<&Active<VisibleRegion>>,
-                Option<&Active<ColoredElement>>,
-                Option<&Active<ZLevel>>,
-            ),
+        Query<(
+            Entity,
+            &UiText,
+            &FontSize,
+            &Position,
+            &Size,
+            &VisibleRegion,
+            &ColoredElement,
+            Option<&ZLevel>,
+            Option<&Active<UiText>>,
+            Option<&Active<FontSize>>,
+            Option<&Active<Position>>,
+            Option<&Active<Size>>,
+            Option<&Active<VisibleRegion>>,
+            Option<&Active<ColoredElement>>,
+            Option<&Active<ZLevel>>,
+        )>,
+    >,
+    change_detector: Query<
+        (),
+        (
+            With<UiText>,
             Or<(
                 Changed<UiText>,
                 Changed<FontSize>,
@@ -182,9 +183,13 @@ fn extract_texts(
                 Changed<Active<ColoredElement>>,
                 Changed<Active<ZLevel>>,
             )>,
-        >,
+        ),
     >,
 ) {
+    if change_detector.is_empty() {
+        return;
+    }
+
     for (
         entity,
         base_text,
@@ -203,7 +208,6 @@ fn extract_texts(
         z_level,
     ) in texts.iter()
     {
-        bevy::log::info!("text_update");
         let entity_ref = main_world.entity(entity);
 
         let (text, font_size, position, size, visible_region, colored_element, z_level) = (
@@ -219,18 +223,15 @@ fn extract_texts(
                 .cloned(),
         );
 
-        commands
-            .get_or_spawn(entity)
-            .insert((
-                text.clone(),
-                font_size.clone(),
-                position.clone(),
-                z_level.unwrap_or_default().clone(),
-                size.clone(),
-                visible_region.clone(),
-                colored_element.clone(),
-            ))
-            .remove::<PreparedText>();
+        commands.get_or_spawn(entity).insert((
+            text.clone(),
+            font_size.clone(),
+            position.clone(),
+            z_level.unwrap_or_default().clone(),
+            size.clone(),
+            visible_region.clone(),
+            colored_element.clone(),
+        ));
     }
 }
 
@@ -238,10 +239,7 @@ fn prepare_texts(
     mut commands: Commands,
     mut text_render_data: ResMut<TextRenderData>,
     mut text_cached_ui_phases: ResMut<TextCachedUiPhases>,
-    mut texts: Query<
-        (Entity, &Size, &UiText, &FontSize, Option<&mut UiTextBuffer>),
-        Without<PreparedText>,
-    >,
+    mut texts: Query<(Entity, &Size, &UiText, &FontSize, Option<&mut UiTextBuffer>)>,
 ) {
     if texts.is_empty() {
         return;
@@ -276,8 +274,6 @@ fn prepare_texts(
             buffer
                 .0
                 .shape_until_scroll(&mut text_render_data.font_system);
-
-            commands.entity(entity).insert(PreparedText);
         } else if let Some(mut commands) = commands.get_entity(entity) {
             let mut buffer = glyphon::Buffer::new(
                 &mut text_render_data.font_system,
@@ -302,7 +298,7 @@ fn prepare_texts(
             );
 
             buffer.shape_until_scroll(&mut text_render_data.font_system);
-            commands.insert((UiTextBuffer(buffer), PreparedText));
+            commands.insert(UiTextBuffer(buffer));
         } else {
             continue;
         }

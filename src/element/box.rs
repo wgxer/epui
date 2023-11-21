@@ -2,8 +2,8 @@ use bevy::{
     asset::{load_internal_asset, HandleId},
     ecs::system::lifetimeless::SRes,
     prelude::{
-        error, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Plugin,
-        Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
+        error, Bundle, Changed, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Or,
+        Plugin, Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
     },
     render::{
         render_phase::{
@@ -48,6 +48,7 @@ impl Plugin for UiBoxPlugin {
 
         render_app
             .insert_resource(BoxShader(Handle::weak(shader_handle)))
+            .init_resource::<BoxCachedPhaseItems>()
             .init_resource::<BoxPipeline>()
             .init_resource::<BoxBuffers>()
             .add_render_command::<UiPhaseItem, RenderBoxCommand>()
@@ -133,6 +134,11 @@ impl Default for BoxBuffers {
 #[derive(Resource)]
 struct BoxShader(Handle<Shader>);
 
+#[derive(Resource, Default)]
+struct BoxCachedPhaseItems {
+    items: Vec<UiPhaseItem>,
+}
+
 fn extract_boxes(
     main_world: Res<MainWorld>,
     mut commands: Commands,
@@ -156,7 +162,37 @@ fn extract_boxes(
             With<UiBox>,
         >,
     >,
+    change_detector: Extract<
+        Query<
+            (),
+            (
+                With<UiBox>,
+                With<Position>,
+                With<Size>,
+                With<VisibleRegion>,
+                With<ColoredElement>,
+                Or<(
+                    Changed<Position>,
+                    Changed<Size>,
+                    Changed<VisibleRegion>,
+                    Changed<ColoredElement>,
+                    Changed<CornersRoundness>,
+                    Changed<ZLevel>,
+                    Changed<Active<Position>>,
+                    Changed<Active<Size>>,
+                    Changed<Active<VisibleRegion>>,
+                    Changed<Active<ColoredElement>>,
+                    Changed<Active<CornersRoundness>>,
+                    Changed<Active<ZLevel>>,
+                )>,
+            ),
+        >,
+    >,
 ) {
+    if change_detector.is_empty() {
+        return;
+    }
+
     for (
         entity,
         base_position,
@@ -221,6 +257,9 @@ fn extract_boxes(
 }
 
 fn queue_boxes(
+    mut commands: Commands,
+
+    mut box_cached_phase_items: ResMut<BoxCachedPhaseItems>,
     mut box_pipeline: ResMut<BoxPipeline>,
     pipeline_cache: Res<PipelineCache>,
 
@@ -244,6 +283,10 @@ fn queue_boxes(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
 ) {
+    if !boxes.is_empty() {
+        box_cached_phase_items.items.clear();
+    }
+
     let pipeline = box_pipeline.0.get_or_insert_with(|| {
         pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("box_pipeline_desc".into()),
@@ -323,17 +366,38 @@ fn queue_boxes(
     });
 
     let draw_function_id = draw_functions.read().id::<RenderBoxCommand>();
+    let mut instances = Vec::new();
 
     for (viewport_size, mut ui_phase) in view_query.iter_mut() {
         let Some(viewport_size) = viewport_size.0 else {
             continue;
         };
 
+        if !box_cached_phase_items.items.is_empty() {
+            for phase_item in &box_cached_phase_items.items {
+                commands
+                    .get_or_spawn(phase_item.entity)
+                    .insert(ZLevel(phase_item.z_index));
+            }
+
+            ui_phase
+                .items
+                .extend(box_cached_phase_items.items.iter().cloned());
+
+            continue;
+        }
+
         let x_pixel_unit = 2.0 / viewport_size.x as f32;
         let y_pixel_unit = 2.0 / viewport_size.y as f32;
 
         let mut instance = 0;
         box_buffers.instances.clear();
+
+        let boxes_count = boxes.iter().count();
+
+        instances.reserve(boxes_count);
+        box_buffers.instances.reserve(boxes_count, &render_device);
+        ui_phase.items.reserve(boxes_count);
 
         for (
             box_entity,
@@ -378,7 +442,7 @@ fn queue_boxes(
             let min_half_unit = u32::min(size.width, size.height) as f32 / 2.0;
             let corner_half_whd = (size.width as f32 - size.height as f32) / 2.0; // Positive = Width > Height, Negative = Width < Height
 
-            box_buffers.instances.push(InstanceData::new(
+            instances.push(InstanceData::new(
                 [
                     left_top_corner,
                     right_top_corner,
@@ -392,7 +456,7 @@ fn queue_boxes(
                 (1.0 - corners_roundness) * min_half_unit,
             ));
 
-            ui_phase.add(UiPhaseItem {
+            let ui_phase_item = UiPhaseItem {
                 entity: box_entity,
                 z_index: z_level.0,
 
@@ -400,11 +464,16 @@ fn queue_boxes(
                 cached_render_pipeline_id: *pipeline,
 
                 batch_range: Some(instance..instance + 1),
-            });
+            };
+
+            box_cached_phase_items.items.push(ui_phase_item.clone());
+            ui_phase.add(ui_phase_item);
 
             instance += 1;
         }
     }
+
+    box_buffers.instances.extend(instances);
 
     box_buffers
         .instances
