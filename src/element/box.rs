@@ -23,6 +23,7 @@ use bevy::{
         texture::BevyDefault,
         Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     },
+    utils::EntityHashMap,
 };
 use bytemuck_derive::{Pod, Zeroable};
 
@@ -57,6 +58,7 @@ impl Plugin for UiBoxPlugin {
             .insert_resource(BoxShader(box_shader))
             .init_resource::<BoxPipeline>()
             .init_resource::<BoxBuffers>()
+            .init_resource::<ExtractedBoxes>()
             .add_render_command::<UiPhaseItem, RenderBoxCommand>()
             .add_systems(ExtractSchedule, extract_boxes)
             .add_systems(Render, queue_boxes.in_set(RenderSet::Queue));
@@ -148,9 +150,23 @@ impl Deref for BoxShader {
     }
 }
 
+#[derive(Debug)]
+struct BoxInstance {
+    position: Position,
+    size: Size,
+
+    visible_region: VisibleRegion,
+    color: ColoredElement,
+
+    corners_roundness: CornersRoundness,
+    z_level: ZLevel,
+}
+
+#[derive(Debug, Default, Resource)]
+struct ExtractedBoxes(EntityHashMap<Entity, BoxInstance>);
+
 fn extract_boxes(
     main_world: Res<MainWorld>,
-    mut commands: Commands,
     boxes: Extract<
         Query<
             (
@@ -171,7 +187,10 @@ fn extract_boxes(
             With<UiBox>,
         >,
     >,
+    mut extracted_boxes: ResMut<ExtractedBoxes>,
 ) {
+    extracted_boxes.0.clear();
+
     for (
         entity,
         base_position,
@@ -218,41 +237,28 @@ fn extract_boxes(
             continue;
         }
 
-        let mut entity_commands = commands.get_or_spawn(entity);
-
-        entity_commands.insert((
-            UiBox,
-            position.clone(),
-            size.clone(),
-            visible_region.clone(),
-            colored_element.clone(),
-            z_level.unwrap_or_default(),
-        ));
-
-        if let Some(corners_roundness) = corners_roundness {
-            entity_commands.insert(corners_roundness.clone());
-        }
+        extracted_boxes.0.insert(
+            entity,
+            BoxInstance {
+                position: position.clone(),
+                size: size.clone(),
+                visible_region: visible_region.clone(),
+                color: colored_element.clone(),
+                corners_roundness: corners_roundness.unwrap_or_default(),
+                z_level: z_level.unwrap_or_default(),
+            },
+        );
     }
 }
 
 fn queue_boxes(
+    mut commands: Commands,
     mut box_pipeline: ResMut<BoxPipeline>,
     pipeline_cache: Res<PipelineCache>,
 
     mut view_query: Query<(&PhysicalViewportSize, &mut RenderPhase<UiPhaseItem>)>,
     mut box_buffers: ResMut<BoxBuffers>,
-    boxes: Query<
-        (
-            Entity,
-            &Position,
-            &ZLevel,
-            &Size,
-            &VisibleRegion,
-            &ColoredElement,
-            Option<&CornersRoundness>,
-        ),
-        With<UiBox>,
-    >,
+    extracted_boxes: Res<ExtractedBoxes>,
     draw_functions: Res<DrawFunctions<UiPhaseItem>>,
 
     box_shader: Res<BoxShader>,
@@ -351,21 +357,23 @@ fn queue_boxes(
         let mut instance = 0;
         box_buffers.instances.clear();
 
-        let boxes_count = boxes.iter().count();
+        let boxes_count = extracted_boxes.0.len();
 
         instances.reserve(boxes_count);
         box_buffers.instances.reserve(boxes_count, &render_device);
         ui_phase.items.reserve(boxes_count);
 
         for (
-            box_entity,
-            position,
-            z_level,
-            size,
-            visible_region,
-            colored_element,
-            corners_roundness,
-        ) in boxes.iter()
+            &box_entity,
+            BoxInstance {
+                position,
+                size,
+                visible_region,
+                color,
+                z_level,
+                corners_roundness,
+            },
+        ) in extracted_boxes.0.iter()
         {
             let full_region = Rect::from_corners(
                 Vec2::from(position.clone()),
@@ -396,7 +404,7 @@ fn queue_boxes(
                 (size.height as f32 / 2.0) + position.y as f32,
             );
 
-            let corners_roundness = Vec4::from(corners_roundness.cloned().unwrap_or_default());
+            let corners_roundness = Vec4::from(corners_roundness.clone());
             let min_half_unit = u32::min(size.width, size.height) as f32 / 2.0;
             let corner_half_whd = (size.width as f32 - size.height as f32) / 2.0; // Positive = Width > Height, Negative = Width < Height
 
@@ -407,7 +415,7 @@ fn queue_boxes(
                     left_bottom_corner,
                     right_bottom_corner,
                 ],
-                colored_element.color,
+                color.color,
                 corner_center,
                 corner_half_whd,
                 min_half_unit,
@@ -425,6 +433,8 @@ fn queue_boxes(
                 dynamic_offset: None,
             };
 
+            commands.get_or_spawn(box_entity);
+
             ui_phase.add(ui_phase_item);
             instance += 1;
         }
@@ -440,13 +450,13 @@ fn queue_boxes(
 type RenderBoxCommand = (SetItemPipeline, DrawBox);
 
 struct DrawBox;
-impl<P: PhaseItem> RenderCommand<P> for DrawBox {
+impl RenderCommand<UiPhaseItem> for DrawBox {
     type Param = SRes<BoxBuffers>;
     type ViewWorldQuery = ();
     type ItemWorldQuery = ();
 
     fn render<'w>(
-        item: &P,
+        item: &UiPhaseItem,
         _view: bevy::ecs::query::ROQueryItem<'w, Self::ViewWorldQuery>,
         _entity: bevy::ecs::query::ROQueryItem<'w, Self::ItemWorldQuery>,
         box_buffers: bevy::ecs::system::SystemParamItem<'w, '_, Self::Param>,
