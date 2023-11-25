@@ -13,7 +13,7 @@ default-features = false
 features = [
     "bevy_winit", 
     "x11", 
-    # "wayland", 
+    "wayland", 
     "bevy_render", 
     "bevy_asset", 
     "bevy_core_pipeline"
