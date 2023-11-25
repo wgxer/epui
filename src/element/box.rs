@@ -1,13 +1,16 @@
+use std::ops::Deref;
+
 use bevy::{
-    asset::{load_internal_asset, HandleId},
+    asset::embedded_asset,
     ecs::system::lifetimeless::SRes,
+    log::error,
     prelude::{
-        error, Bundle, Changed, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Or,
-        Plugin, Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
+        AssetServer, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Plugin,
+        Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
     },
     render::{
         render_phase::{
-            AddRenderCommand, BatchedPhaseItem, DrawFunctions, RenderCommand, RenderCommandResult,
+            AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
             RenderPhase, SetItemPipeline,
         },
         render_resource::{
@@ -36,19 +39,22 @@ use crate::{
 pub(crate) struct UiBoxPlugin;
 
 impl Plugin for UiBoxPlugin {
-    fn build(&self, _app: &mut bevy::prelude::App) {}
+    fn build(&self, app: &mut bevy::prelude::App) {
+        embedded_asset!(app, "src/", "box.wgsl");
+    }
 
     fn finish(&self, app: &mut bevy::prelude::App) {
-        let shader_handle = HandleId::random::<Shader>();
-        load_internal_asset!(app, shader_handle, "box.wgsl", Shader::from_wgsl);
+        let box_shader = app
+            .world
+            .resource::<AssetServer>()
+            .load("embedded://epui/element/box.wgsl");
 
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
         render_app
-            .insert_resource(BoxShader(Handle::weak(shader_handle)))
-            .init_resource::<BoxCachedPhaseItems>()
+            .insert_resource(BoxShader(box_shader))
             .init_resource::<BoxPipeline>()
             .init_resource::<BoxBuffers>()
             .add_render_command::<UiPhaseItem, RenderBoxCommand>()
@@ -107,7 +113,7 @@ impl InstanceData {
                 vertices[2].into(),
                 vertices[3].into(),
             ],
-            color: color.into(),
+            color: color.rgba_to_vec4().into(),
 
             corner_center: corner_center.into(),
             corner_half_whd,
@@ -134,9 +140,12 @@ impl Default for BoxBuffers {
 #[derive(Resource)]
 struct BoxShader(Handle<Shader>);
 
-#[derive(Resource, Default)]
-struct BoxCachedPhaseItems {
-    items: Vec<UiPhaseItem>,
+impl Deref for BoxShader {
+    type Target = Handle<Shader>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 fn extract_boxes(
@@ -162,37 +171,7 @@ fn extract_boxes(
             With<UiBox>,
         >,
     >,
-    change_detector: Extract<
-        Query<
-            (),
-            (
-                With<UiBox>,
-                With<Position>,
-                With<Size>,
-                With<VisibleRegion>,
-                With<ColoredElement>,
-                Or<(
-                    Changed<Position>,
-                    Changed<Size>,
-                    Changed<VisibleRegion>,
-                    Changed<ColoredElement>,
-                    Changed<CornersRoundness>,
-                    Changed<ZLevel>,
-                    Changed<Active<Position>>,
-                    Changed<Active<Size>>,
-                    Changed<Active<VisibleRegion>>,
-                    Changed<Active<ColoredElement>>,
-                    Changed<Active<CornersRoundness>>,
-                    Changed<Active<ZLevel>>,
-                )>,
-            ),
-        >,
-    >,
 ) {
-    if change_detector.is_empty() {
-        return;
-    }
-
     for (
         entity,
         base_position,
@@ -212,16 +191,16 @@ fn extract_boxes(
         let entity_ref = main_world.entity(entity);
 
         let (position, size, visible_region, colored_element, corners_roundness, z_level) = (
-            position.active_or_base(&entity_ref, base_position),
-            size.active_or_base(&entity_ref, base_size),
-            visible_region.active_or_base(&entity_ref, base_visible_region),
-            colored_element.active_or_base(&entity_ref, base_colored_element),
+            position.active_or_base(&main_world, &entity_ref, base_position),
+            size.active_or_base(&main_world, &entity_ref, base_size),
+            visible_region.active_or_base(&main_world, &entity_ref, base_visible_region),
+            colored_element.active_or_base(&main_world, &entity_ref, base_colored_element),
             corners_roundness
-                .map(|corners_roundness| corners_roundness.active(&entity_ref))
+                .map(|corners_roundness| corners_roundness.active(&main_world, &entity_ref))
                 .or(base_corners_roundness)
                 .cloned(),
             z_level
-                .map(|z_level| z_level.active(&entity_ref))
+                .map(|z_level| z_level.active(&main_world, &entity_ref))
                 .or(base_z_level)
                 .cloned(),
         );
@@ -257,9 +236,6 @@ fn extract_boxes(
 }
 
 fn queue_boxes(
-    mut commands: Commands,
-
-    mut box_cached_phase_items: ResMut<BoxCachedPhaseItems>,
     mut box_pipeline: ResMut<BoxPipeline>,
     pipeline_cache: Res<PipelineCache>,
 
@@ -283,10 +259,6 @@ fn queue_boxes(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
 ) {
-    if !boxes.is_empty() {
-        box_cached_phase_items.items.clear();
-    }
-
     let pipeline = box_pipeline.0.get_or_insert_with(|| {
         pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("box_pipeline_desc".into()),
@@ -373,20 +345,6 @@ fn queue_boxes(
             continue;
         };
 
-        if !box_cached_phase_items.items.is_empty() {
-            for phase_item in &box_cached_phase_items.items {
-                commands
-                    .get_or_spawn(phase_item.entity)
-                    .insert(ZLevel(phase_item.z_index));
-            }
-
-            ui_phase
-                .items
-                .extend(box_cached_phase_items.items.iter().cloned());
-
-            continue;
-        }
-
         let x_pixel_unit = 2.0 / viewport_size.x as f32;
         let y_pixel_unit = 2.0 / viewport_size.y as f32;
 
@@ -463,12 +421,11 @@ fn queue_boxes(
                 draw_function: draw_function_id,
                 cached_render_pipeline_id: *pipeline,
 
-                batch_range: Some(instance..instance + 1),
+                batch_range: instance..instance + 1,
+                dynamic_offset: None,
             };
 
-            box_cached_phase_items.items.push(ui_phase_item.clone());
             ui_phase.add(ui_phase_item);
-
             instance += 1;
         }
     }
@@ -483,7 +440,7 @@ fn queue_boxes(
 type RenderBoxCommand = (SetItemPipeline, DrawBox);
 
 struct DrawBox;
-impl<P: BatchedPhaseItem> RenderCommand<P> for DrawBox {
+impl<P: PhaseItem> RenderCommand<P> for DrawBox {
     type Param = SRes<BoxBuffers>;
     type ViewWorldQuery = ();
     type ItemWorldQuery = ();
@@ -507,14 +464,7 @@ impl<P: BatchedPhaseItem> RenderCommand<P> for DrawBox {
             pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         }
 
-        {
-            let Some(instances_range) = item.batch_range().clone() else {
-                error!("Batch range isn't present");
-                return RenderCommandResult::Failure;
-            };
-
-            pass.draw(0..6, instances_range);
-        }
+        pass.draw(0..6, item.batch_range().clone());
 
         RenderCommandResult::Success
     }

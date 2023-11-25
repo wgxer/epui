@@ -11,15 +11,17 @@ use bevy::{
     render::{
         camera::{CameraRenderGraph, ExtractedCamera},
         extract_component::{ExtractComponent, ExtractComponentPlugin},
-        render_graph::{NodeRunError, RenderGraph, ViewNode, ViewNodeRunner},
+        primitives::Frustum,
+        render_graph::{NodeRunError, RenderGraphApp, ViewNode, ViewNodeRunner},
         render_phase::{
-            sort_phase_system, BatchedPhaseItem, CachedRenderPipelinePhaseItem, DrawFunctionId,
-            DrawFunctions, PhaseItem, RenderPhase,
+            sort_phase_system, CachedRenderPipelinePhaseItem, DrawFunctionId, DrawFunctions,
+            PhaseItem, RenderPhase,
         },
         render_resource::{CachedRenderPipelineId, LoadOp, Operations, RenderPassDescriptor},
         view::{ViewTarget, VisibleEntities},
         Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     },
+    utils::nonmax::NonMaxU32,
     window::{RequestRedraw, WindowResized},
 };
 
@@ -34,33 +36,17 @@ impl Plugin for UiCameraPlugin {
     }
 
     fn finish(&self, app: &mut bevy::prelude::App) {
-        let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
+        app.sub_app_mut(RenderApp)
             .init_resource::<DrawFunctions<UiPhaseItem>>()
             .add_systems(ExtractSchedule, extract_ui_camera_phases)
             .add_systems(
                 Render,
                 sort_phase_system::<UiPhaseItem>.in_set(RenderSet::PhaseSort),
-            );
-
-        let ui_pass_node = ViewNodeRunner::new(UiPassNode, &mut render_app.world);
-
-        let upscaling_pass_node = ViewNodeRunner::new(
-            UpscalingNode::from_world(&mut render_app.world),
-            &mut render_app.world,
-        );
-        let mut world_render_graph = render_app.world.resource_mut::<RenderGraph>();
-
-        let mut render_ui_graph = RenderGraph::default();
-
-        let ui_node = render_ui_graph.add_node(UiPassNode::NAME, ui_pass_node);
-        let upscaling_node = render_ui_graph.add_node("upscaling", upscaling_pass_node);
-
-        render_ui_graph.add_node_edge(ui_node, upscaling_node);
-        world_render_graph.add_sub_graph(GRAPH_NAME, render_ui_graph);
+            )
+            .add_render_sub_graph(GRAPH_NAME)
+            .add_render_graph_node::<ViewNodeRunner<UiPassNode>>(GRAPH_NAME, UiPassNode::NAME)
+            .add_render_graph_node::<ViewNodeRunner<UpscalingNode>>(GRAPH_NAME, "upscaling")
+            .add_render_graph_edge(GRAPH_NAME, UiPassNode::NAME, "upscaling");
     }
 }
 
@@ -70,7 +56,7 @@ fn redraw_on_resize(
 ) {
     let mut redraw = false; // Using a bool to consume the reader & doing a request once
 
-    for _ in resize_reader.iter() {
+    for _ in resize_reader.read() {
         redraw = true;
     }
 
@@ -91,6 +77,7 @@ pub struct UiCameraBundle {
     global_transform: GlobalTransform,
     visible_entities: VisibleEntities,
     projection: OrthographicProjection,
+    frustum: Frustum,
 }
 
 impl Default for UiCameraBundle {
@@ -101,7 +88,8 @@ impl Default for UiCameraBundle {
             ui_camera: UiCamera,
             global_transform: GlobalTransform::default(),
             visible_entities: VisibleEntities::default(),
-            projection: Default::default(),
+            projection: OrthographicProjection::default(),
+            frustum: Frustum::default(),
         }
     }
 }
@@ -114,7 +102,8 @@ pub struct UiPhaseItem {
     pub draw_function: DrawFunctionId,
     pub cached_render_pipeline_id: CachedRenderPipelineId,
 
-    pub batch_range: Option<Range<u32>>,
+    pub batch_range: Range<u32>,
+    pub dynamic_offset: Option<NonMaxU32>,
 }
 
 impl PhaseItem for UiPhaseItem {
@@ -135,21 +124,27 @@ impl PhaseItem for UiPhaseItem {
     fn sort(items: &mut [Self]) {
         items.sort_unstable_by_key(|item| item.z_index);
     }
+
+    fn batch_range(&self) -> &Range<u32> {
+        &self.batch_range
+    }
+
+    fn batch_range_mut(&mut self) -> &mut Range<u32> {
+        &mut self.batch_range
+    }
+
+    fn dynamic_offset(&self) -> Option<NonMaxU32> {
+        self.dynamic_offset
+    }
+
+    fn dynamic_offset_mut(&mut self) -> &mut Option<NonMaxU32> {
+        &mut self.dynamic_offset
+    }
 }
 
 impl CachedRenderPipelinePhaseItem for UiPhaseItem {
     fn cached_pipeline(&self) -> CachedRenderPipelineId {
         self.cached_render_pipeline_id
-    }
-}
-
-impl BatchedPhaseItem for UiPhaseItem {
-    fn batch_range(&self) -> &Option<Range<u32>> {
-        &self.batch_range
-    }
-
-    fn batch_range_mut(&mut self) -> &mut Option<Range<u32>> {
-        &mut self.batch_range
     }
 }
 
@@ -163,7 +158,7 @@ fn extract_ui_camera_phases(
     for (entity, camera) in cameras.iter() {
         if camera.is_active {
             commands.get_or_spawn(entity).insert((
-                PhysicalViewportSize(camera.physical_viewport_size()),
+                PhysicalViewportSize(camera.physical_target_size()),
                 RenderPhase::<UiPhaseItem>::default(),
             ));
         }
@@ -171,6 +166,12 @@ fn extract_ui_camera_phases(
 }
 
 pub struct UiPassNode;
+
+impl FromWorld for UiPassNode {
+    fn from_world(_world: &mut World) -> Self {
+        UiPassNode
+    }
+}
 
 impl UiPassNode {
     const NAME: &'static str = "ui_pass_node";

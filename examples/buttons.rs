@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use bevy::{
+    log::info,
     prelude::{
-        info, App, BuildChildren, Color, Commands, Component, Entity, EventReader, Query, Startup,
+        App, BuildChildren, Color, Commands, Component, Entity, EventReader, Query, Startup,
         Update, With,
     },
     DefaultPlugins,
@@ -113,7 +114,7 @@ fn on_button_click(
     buttons: Query<Entity, With<Button>>,
     mut click_events: EventReader<ClickEvent>,
 ) {
-    for click_event in click_events.iter() {
+    for click_event in click_events.read() {
         let Ok(_) = buttons.get(click_event.element) else {
             continue;
         };

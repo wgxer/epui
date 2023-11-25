@@ -3,9 +3,10 @@ use bevy::{
         mouse::{MouseButtonInput, MouseMotion},
         ButtonState,
     },
+    log::warn,
     prelude::{
-        warn, Commands, Component, Entity, Event, EventReader, EventWriter, MouseButton, Plugin,
-        Query, Rect, Update, With, Without,
+        Commands, Component, Entity, Event, EventReader, EventWriter, MouseButton, Plugin, Query,
+        Rect, Update, With, Without,
     },
     window::{PrimaryWindow, Window},
 };
@@ -71,7 +72,7 @@ fn on_mouse_move(
 
     let cursor_position = cursor_position.round();
 
-    if mouse_motion_events.iter().next().is_some() {
+    if mouse_motion_events.read().next().is_some() {
         for (entity, position, size, collision, visible_region) in elements_not_hovered.iter() {
             let visible_region = match visible_region {
                 Some(visible_region) => visible_region.clone(),
@@ -147,7 +148,7 @@ fn on_mouse_click_start(
 
     let cursor_position = cursor_position.round();
 
-    for mouse_click_event in mouse_click_events.iter() {
+    for mouse_click_event in mouse_click_events.read() {
         if mouse_click_event.button == MouseButton::Left {
             for (entity, position, size, collision, visible_region) in elements.iter() {
                 let visible_region = match visible_region {
@@ -196,7 +197,7 @@ fn on_mouse_click_end(
 
     let cursor_position = cursor_position.round();
 
-    for mouse_click_event in mouse_click_events.iter() {
+    for mouse_click_event in mouse_click_events.read() {
         if mouse_click_event.button == MouseButton::Left {
             for (entity, position, size, collision, visible_region) in elements.iter() {
                 if mouse_click_event.button == MouseButton::Left

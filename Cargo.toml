@@ -6,12 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies.bevy]
-version = "0.11.3"
+git = "https://github.com/bevyengine/bevy"
+rev = "4eafd60"
+# version = "0.12.0"
 default-features = false
 features = [
     "bevy_winit", 
     "x11", 
-    "wayland", 
+    # "wayland", 
     "bevy_render", 
     "bevy_asset", 
     "bevy_core_pipeline"
@@ -21,7 +23,7 @@ features = [
 bytemuck = "1.13.1"
 bytemuck_derive = "1.4.0" # Used to implement Zeroable/Pod traits
 
-glyphon = { git = "https://github.com/wgxer/glyphon", rev="ecb49c4" }
+glyphon = { git = "https://github.com/grovesNL/glyphon", rev="6aaaf50" }
 itertools = "0.10.5"
 
 [profile.dev]

@@ -115,7 +115,7 @@ pub fn click_effect_system<T: Component + Clone>(
     effects: Query<&ClickEffect<T>>,
 ) {
     if !effects.is_empty() {
-        for event in events.iter() {
+        for event in events.read() {
             let Ok(effect) = effects.get(event.element) else {
                 continue;
             };
@@ -133,7 +133,7 @@ pub fn click_effect_clear_system<T: Component + Clone>(
     effects: Query<(), (With<ClickEffect<T>>, With<Clicked<T>>)>,
 ) {
     if !effects.is_empty() {
-        for event in events.iter() {
+        for event in events.read() {
             if !effects.contains(event.element) {
                 continue;
             };
@@ -150,7 +150,7 @@ pub fn click_effect_transition_in_system<T: PropertyTransition<T> + Component + 
     effects: Query<(&ClickEffectTransition<T>, &T, Option<&Active<T>>)>,
 ) {
     if !effects.is_empty() {
-        for event in events.iter() {
+        for event in events.read() {
             let Ok((effect, base_value, active_value)) = effects.get(event.element) else {
                 continue;
             };
@@ -160,7 +160,11 @@ pub fn click_effect_transition_in_system<T: PropertyTransition<T> + Component + 
             commands
                 .entity(event.element)
                 .insert((
-                    Clicked::new(active_value.active_or_base(&entity_ref, base_value).clone()),
+                    Clicked::new(
+                        active_value
+                            .active_or_base(world, &entity_ref, base_value)
+                            .clone(),
+                    ),
                     Transition::new(Clicked::new(effect.value.clone()), effect.in_duration),
                 ))
                 .remove::<AutoRemove<Clicked<T>>>();
@@ -175,7 +179,7 @@ pub fn click_effect_transition_out_system<T: PropertyTransition<T> + Component +
     effects: Query<(&ClickEffectTransition<T>, &T, Option<&Active<T>>)>,
 ) {
     if !effects.is_empty() {
-        for event in events.iter() {
+        for event in events.read() {
             let Ok((effect, base_value, active_value)) = effects.get(event.element) else {
                 continue;
             };
@@ -187,7 +191,7 @@ pub fn click_effect_transition_out_system<T: PropertyTransition<T> + Component +
                     Transition::new(
                         Clicked::new(
                             active_value
-                                .second_active_or_base(&entity_ref, base_value)
+                                .second_active_or_base(world, &entity_ref, base_value)
                                 .clone(),
                         ),
                         effect.out_duration,

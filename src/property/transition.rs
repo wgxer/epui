@@ -56,7 +56,7 @@ pub fn transition_system<T: PropertyTransition<T> + Component + Clone>(
 
     for (transition_entity, mut transition, mut transition_property) in transitions.iter_mut() {
         transition.timer.tick(time.delta());
-        let progress = f32::min(1.0f32, transition.timer.percent());
+        let progress = f32::min(1.0f32, transition.timer.fraction());
 
         let new_property_value = T::transition(
             progress,
@@ -111,11 +111,11 @@ impl PropertyTransition<ColoredElement> for ColoredElement {
         from: &'a ColoredElement,
         to: &'a ColoredElement,
     ) -> ColoredElement {
-        ColoredElement::new(
-            Vec4::from(from.color)
-                .lerp(to.color.into(), progress)
-                .into(),
-        )
+        ColoredElement::new(Color::rgba_from_array(
+            from.color
+                .rgba_to_vec4()
+                .lerp(to.color.rgba_to_vec4(), progress),
+        ))
     }
 }
 

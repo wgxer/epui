@@ -13,7 +13,7 @@ use bevy::{
     },
     prelude::{
         Added, App, Commands, Component, Entity, Mut, PostUpdate, Query, RemovedComponents, Res,
-        Resource, Update,
+        Resource, Update, World,
     },
 };
 
@@ -68,38 +68,38 @@ impl<T: Component + Clone> Active<T> {
         components.component_id::<C>() == self.component_ids.last().copied()
     }
 
-    pub fn get_active<'a>(&self, entity_ref: &'a EntityRef) -> Option<&'a T> {
+    pub fn get_active<'a>(&self, world: &World, entity_ref: &'a EntityRef) -> Option<&'a T> {
         if let Some(active) = self.component_ids.last().copied() {
-            Some(Self::get_by_component_id(entity_ref, active))
+            Some(Self::get_by_component_id(world, entity_ref, active))
         } else {
             None
         }
     }
 
-    pub fn active<'a>(&self, entity_ref: &'a EntityRef) -> &'a T {
+    pub fn active<'a>(&self, world: &World, entity_ref: &'a EntityRef) -> &'a T {
         if let Some(active) = self.component_ids.last().copied() {
-            Self::get_by_component_id(entity_ref, active)
+            Self::get_by_component_id(world, entity_ref, active)
         } else {
             panic!("Couldn't find any active component, did this state get created correctly?");
         }
     }
 
-    pub fn active_mut<'a>(&mut self, entity_mut: &'a mut EntityMut) -> Mut<'a, T> {
+    pub fn active_mut<'a>(&mut self, world: &World, entity_mut: &'a mut EntityMut) -> Mut<'a, T> {
         if let Some(active) = self.component_ids.last().copied() {
-            Self::get_mut_by_component_id(entity_mut, active)
+            Self::get_mut_by_component_id(world, entity_mut, active)
         } else {
             panic!("Couldn't find any active component, did this state get created correctly?");
         }
     }
 
-    pub fn get_second_active<'a>(&self, entity_ref: &'a EntityRef) -> Option<&'a T> {
+    pub fn get_second_active<'a>(&self, world: &World, entity_ref: &'a EntityRef) -> Option<&'a T> {
         if self.component_ids.len() >= 2 {
             if let Some(second_active) = self
                 .component_ids
                 .get(self.component_ids.len() - 2)
                 .copied()
             {
-                Some(Self::get_by_component_id(entity_ref, second_active))
+                Some(Self::get_by_component_id(world, entity_ref, second_active))
             } else {
                 None
             }
@@ -108,30 +108,40 @@ impl<T: Component + Clone> Active<T> {
         }
     }
 
-    pub fn get_state<'a>(&self, entity_ref: &'a EntityRef, index: usize) -> Option<&'a T> {
+    pub fn get_state<'a>(
+        &self,
+        world: &World,
+        entity_ref: &'a EntityRef,
+        index: usize,
+    ) -> Option<&'a T> {
         self.component_ids
             .get(index)
             .copied()
-            .map(|component_id| Self::get_by_component_id(entity_ref, component_id))
+            .map(|component_id| Self::get_by_component_id(world, entity_ref, component_id))
     }
 
     pub fn get_state_mut<'a>(
         &self,
+        world: &World,
         entity_mut: &'a mut EntityMut,
         index: usize,
     ) -> Option<Mut<'a, T>> {
         self.component_ids
             .get(index)
             .copied()
-            .map(|component_id| Self::get_mut_by_component_id(entity_mut, component_id))
+            .map(|component_id| Self::get_mut_by_component_id(world, entity_mut, component_id))
     }
 
     pub fn states_len(&self) -> usize {
         self.component_ids.len()
     }
 
-    fn get_by_component_id<'a>(entity_ref: &'a EntityRef, component_id: ComponentId) -> &'a T {
-        if Some(component_id) == entity_ref.world().component_id::<T>() {
+    fn get_by_component_id<'a>(
+        world: &World,
+        entity_ref: &'a EntityRef,
+        component_id: ComponentId,
+    ) -> &'a T {
+        if Some(component_id) == world.component_id::<T>() {
             entity_ref.get::<T>().expect(
                 "Couldn't find requested component, did correct entity reference get passed?",
             )
@@ -148,10 +158,11 @@ impl<T: Component + Clone> Active<T> {
     }
 
     fn get_mut_by_component_id<'a>(
+        world: &World,
         entity_mut: &'a mut EntityMut,
         component_id: ComponentId,
     ) -> Mut<'a, T> {
-        if Some(component_id) == entity_mut.world().component_id::<T>() {
+        if Some(component_id) == world.component_id::<T>() {
             entity_mut.get_mut::<T>().expect(
                 "Couldn't find requested component, did correct entity reference get passed?",
             )
@@ -169,8 +180,13 @@ impl<T: Component + Clone> Active<T> {
 
 pub trait ActiveOptionExt<T: Component + Clone> {
     fn is_active_state<C: Component>(&self, components: &Components) -> bool;
-    fn active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T;
-    fn second_active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T;
+    fn active_or_base<'a>(&self, world: &World, entity_ref: &'a EntityRef, base: &'a T) -> &'a T;
+    fn second_active_or_base<'a>(
+        &self,
+        world: &World,
+        entity_ref: &'a EntityRef,
+        base: &'a T,
+    ) -> &'a T;
 }
 
 impl<T: Component + Clone> ActiveOptionExt<T> for Option<&Active<T>> {
@@ -179,12 +195,18 @@ impl<T: Component + Clone> ActiveOptionExt<T> for Option<&Active<T>> {
             .unwrap_or(false)
     }
 
-    fn active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T {
-        self.map(|active| active.active(entity_ref)).unwrap_or(base)
+    fn active_or_base<'a>(&self, world: &World, entity_ref: &'a EntityRef, base: &'a T) -> &'a T {
+        self.map(|active| active.active(world, entity_ref))
+            .unwrap_or(base)
     }
 
-    fn second_active_or_base<'a>(&self, entity_ref: &'a EntityRef, base: &'a T) -> &'a T {
-        self.map(|active| active.get_second_active(entity_ref))
+    fn second_active_or_base<'a>(
+        &self,
+        world: &World,
+        entity_ref: &'a EntityRef,
+        base: &'a T,
+    ) -> &'a T {
+        self.map(|active| active.get_second_active(world, entity_ref))
             .unwrap_or(Some(base))
             .unwrap_or(base)
     }
@@ -247,7 +269,7 @@ fn remove_component_state<S: Send + Sync + 'static, T: Component + Clone>(
     mut active_components: Query<(Entity, &mut Active<T>)>,
     mut removed_states: RemovedComponents<ComponentState<S, T>>,
 ) {
-    let mut active_components = active_components.iter_many_mut(removed_states.into_iter());
+    let mut active_components = active_components.iter_many_mut(removed_states.read());
 
     while let Some((entity, mut active)) = active_components.fetch_next() {
         active.component_ids.retain(|component_id| {
