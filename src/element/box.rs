@@ -5,8 +5,8 @@ use bevy::{
     ecs::system::lifetimeless::SRes,
     log::error,
     prelude::{
-        AssetServer, Bundle, Color, Commands, Component, Entity, Handle, IntoSystemConfigs, Plugin,
-        Query, Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
+        AssetServer, Bundle, Color, Component, Entity, Handle, IntoSystemConfigs, Plugin, Query,
+        Rect, Res, ResMut, Resource, Shader, Vec2, Vec4, With,
     },
     render::{
         render_phase::{
@@ -252,11 +252,10 @@ fn extract_boxes(
 }
 
 fn queue_boxes(
-    mut commands: Commands,
     mut box_pipeline: ResMut<BoxPipeline>,
     pipeline_cache: Res<PipelineCache>,
 
-    mut view_query: Query<(&PhysicalViewportSize, &mut RenderPhase<UiPhaseItem>)>,
+    mut view_query: Query<(Entity, &PhysicalViewportSize, &mut RenderPhase<UiPhaseItem>)>,
     mut box_buffers: ResMut<BoxBuffers>,
     extracted_boxes: Res<ExtractedBoxes>,
     draw_functions: Res<DrawFunctions<UiPhaseItem>>,
@@ -346,7 +345,7 @@ fn queue_boxes(
     let draw_function_id = draw_functions.read().id::<RenderBoxCommand>();
     let mut instances = Vec::new();
 
-    for (viewport_size, mut ui_phase) in view_query.iter_mut() {
+    for (camera_entity, viewport_size, mut ui_phase) in view_query.iter_mut() {
         let Some(viewport_size) = viewport_size.0 else {
             continue;
         };
@@ -364,7 +363,7 @@ fn queue_boxes(
         ui_phase.items.reserve(boxes_count);
 
         for (
-            &box_entity,
+            _,
             BoxInstance {
                 position,
                 size,
@@ -423,7 +422,7 @@ fn queue_boxes(
             ));
 
             let ui_phase_item = UiPhaseItem {
-                entity: box_entity,
+                entity: camera_entity,
                 z_index: z_level.0,
 
                 draw_function: draw_function_id,
@@ -432,8 +431,6 @@ fn queue_boxes(
                 batch_range: instance..instance + 1,
                 dynamic_offset: None,
             };
-
-            commands.get_or_spawn(box_entity);
 
             ui_phase.add(ui_phase_item);
             instance += 1;
