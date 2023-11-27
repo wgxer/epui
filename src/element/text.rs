@@ -131,7 +131,6 @@ impl Plugin for UiTextPlugin {
         render_app
             .insert_resource(TextRenderData::new(font_system, swash_cache, text_atlas))
             .init_resource::<ExtractedTexts>()
-            .init_resource::<TextCachedUiPhases>()
             .add_render_command::<UiPhaseItem, RenderTextCommand>()
             .add_systems(ExtractSchedule, extract_texts)
             .add_systems(
@@ -319,15 +318,9 @@ fn prepare_texts(
     }
 }
 
-#[derive(Resource, Default)]
-struct TextCachedUiPhases {
-    phases: HashMap<u32, UiPhaseItem>,
-}
-
 fn queue_texts(
     mut view_query: Query<(Entity, &PhysicalViewportSize, &mut RenderPhase<UiPhaseItem>)>,
     mut text_render_data: ResMut<TextRenderData>,
-    mut text_cached_ui_phases: ResMut<TextCachedUiPhases>,
     extracted_texts: Res<ExtractedTexts>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
@@ -447,7 +440,6 @@ fn queue_texts(
                 dynamic_offset: None,
             };
 
-            text_cached_ui_phases.phases.insert(*z_index, phase.clone());
             ui_phase.add(phase);
         }
     }
