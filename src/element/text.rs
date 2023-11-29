@@ -17,7 +17,7 @@ use bevy::{
         texture::BevyDefault,
         Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     },
-    utils::{EntityHashMap, HashMap},
+    utils::HashMap,
 };
 use glyphon::{FontSystem, Metrics, SwashCache, TextArea, TextAtlas, TextBounds, TextRenderer};
 
@@ -158,10 +158,10 @@ struct TextInstance {
 }
 
 #[derive(Resource, Default)]
-struct ExtractedTexts(EntityHashMap<Entity, TextInstance>);
+struct ExtractedTexts(Vec<TextInstance>);
 
 impl Deref for ExtractedTexts {
-    type Target = EntityHashMap<Entity, TextInstance>;
+    type Target = Vec<TextInstance>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -199,6 +199,17 @@ fn extract_texts(
 ) {
     extracted_texts.clear();
 
+    let texts_count = texts.iter().len();
+    if texts_count > extracted_texts.capacity() {
+        let additional_slots = texts_count - extracted_texts.len() + 2;
+
+        extracted_texts.reserve_exact(additional_slots);
+    }
+
+    if extracted_texts.capacity().abs_diff(extracted_texts.len()) >= 5 {
+        extracted_texts.shrink_to_fit();
+    }
+
     for (
         entity,
         base_text,
@@ -229,22 +240,19 @@ fn extract_texts(
             z_level.active_or_base(&main_world, &entity_ref, base_z_level.unwrap_or(&ZLevel(0))),
         );
 
-        extracted_texts.insert(
-            entity,
-            TextInstance {
-                text: text.clone(),
-                font_size: font_size.clone(),
+        extracted_texts.push(TextInstance {
+            text: text.clone(),
+            font_size: font_size.clone(),
 
-                position: position.clone(),
-                size: size.clone(),
+            position: position.clone(),
+            size: size.clone(),
 
-                z_level: z_level.clone(),
-                visible_region: visible_region.clone(),
+            z_level: z_level.clone(),
+            visible_region: visible_region.clone(),
 
-                color: colored_element.clone(),
-                text_buffer: None,
-            },
-        );
+            color: colored_element.clone(),
+            text_buffer: None,
+        });
     }
 }
 
@@ -252,16 +260,13 @@ fn prepare_texts(
     mut text_render_data: ResMut<TextRenderData>,
     mut extracted_texts: ResMut<ExtractedTexts>,
 ) {
-    for (
-        _entity,
-        TextInstance {
-            size,
-            text,
-            font_size,
-            text_buffer,
-            ..
-        },
-    ) in extracted_texts.iter_mut()
+    for TextInstance {
+        size,
+        text,
+        font_size,
+        text_buffer,
+        ..
+    } in extracted_texts.iter_mut()
     {
         if let Some(buffer) = text_buffer.as_mut() {
             buffer.0.set_text(
@@ -333,17 +338,14 @@ fn queue_texts(
 
         let mut text_areas_map = HashMap::new();
 
-        for (
-            _entity,
-            TextInstance {
-                text_buffer,
-                position,
-                z_level,
-                visible_region,
-                color,
-                ..
-            },
-        ) in extracted_texts.iter()
+        for TextInstance {
+            text_buffer,
+            position,
+            z_level,
+            visible_region,
+            color,
+            ..
+        } in extracted_texts.iter()
         {
             let Some(text_buffer) = text_buffer else {
                 continue;
