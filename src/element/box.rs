@@ -21,7 +21,7 @@ use bevy::{
         },
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     },
     utils::EntityHashMap,
 };
@@ -31,9 +31,8 @@ use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     prelude::AutoZUpdate,
     property::{
-        state::{Active, ActiveOptionExt},
-        update::AutoVisibleRegionUpdate,
-        ColoredElement, CornersRoundness, Position, Size, VisibleRegion, ZLevel,
+        state::CurrentlyActive, update::AutoVisibleRegionUpdate, ColoredElement, CornersRoundness,
+        Position, Size, VisibleRegion, ZLevel,
     },
 };
 
@@ -166,23 +165,16 @@ struct BoxInstance {
 struct ExtractedBoxes(EntityHashMap<Entity, BoxInstance>);
 
 fn extract_boxes(
-    main_world: Res<MainWorld>,
     boxes: Extract<
         Query<
             (
                 Entity,
-                &Position,
-                &Size,
-                &VisibleRegion,
-                &ColoredElement,
-                Option<&CornersRoundness>,
-                Option<&ZLevel>,
-                Option<&Active<Position>>,
-                Option<&Active<Size>>,
-                Option<&Active<VisibleRegion>>,
-                Option<&Active<ColoredElement>>,
-                Option<&Active<CornersRoundness>>,
-                Option<&Active<ZLevel>>,
+                &CurrentlyActive<Position>,
+                &CurrentlyActive<Size>,
+                &CurrentlyActive<VisibleRegion>,
+                &CurrentlyActive<ColoredElement>,
+                Option<&CurrentlyActive<CornersRoundness>>,
+                Option<&CurrentlyActive<ZLevel>>,
             ),
             With<UiBox>,
         >,
@@ -191,39 +183,9 @@ fn extract_boxes(
 ) {
     extracted_boxes.0.clear();
 
-    for (
-        entity,
-        base_position,
-        base_size,
-        base_visible_region,
-        base_colored_element,
-        base_corners_roundness,
-        base_z_level,
-        position,
-        size,
-        visible_region,
-        colored_element,
-        corners_roundness,
-        z_level,
-    ) in boxes.iter()
+    for (entity, position, size, visible_region, colored_element, corners_roundness, z_level) in
+        boxes.iter()
     {
-        let entity_ref = main_world.entity(entity);
-
-        let (position, size, visible_region, colored_element, corners_roundness, z_level) = (
-            position.active_or_base(&main_world, &entity_ref, base_position),
-            size.active_or_base(&main_world, &entity_ref, base_size),
-            visible_region.active_or_base(&main_world, &entity_ref, base_visible_region),
-            colored_element.active_or_base(&main_world, &entity_ref, base_colored_element),
-            corners_roundness
-                .map(|corners_roundness| corners_roundness.active(&main_world, &entity_ref))
-                .or(base_corners_roundness)
-                .cloned(),
-            z_level
-                .map(|z_level| z_level.active(&main_world, &entity_ref))
-                .or(base_z_level)
-                .cloned(),
-        );
-
         let full_region = Rect::from_corners(
             Vec2::from(position.clone()),
             Vec2::from(position.clone()) + Vec2::from(size.clone()),
@@ -244,8 +206,8 @@ fn extract_boxes(
                 size: size.clone(),
                 visible_region: visible_region.clone(),
                 color: colored_element.clone(),
-                corners_roundness: corners_roundness.unwrap_or_default(),
-                z_level: z_level.unwrap_or_default(),
+                corners_roundness: corners_roundness.cloned().unwrap_or_default(),
+                z_level: z_level.cloned().unwrap_or_default(),
             },
         );
     }

@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::{Active, ActiveOptionExt, AppComponentStateExt, ComponentState};
+use super::{Active, ActiveOptionExt, AppComponentStateExt, ComponentState, CurrentlyActive};
 
 pub struct UiClickStatePlugin;
 
@@ -144,27 +144,20 @@ pub fn click_effect_clear_system<T: Component + Clone>(
 }
 
 pub fn click_effect_transition_in_system<T: PropertyTransition<T> + Component + Clone>(
-    world: &World,
     mut commands: Commands,
     mut events: EventReader<PressEvent>,
-    effects: Query<(&ClickEffectTransition<T>, &T, Option<&Active<T>>)>,
+    effects: Query<(&ClickEffectTransition<T>, &CurrentlyActive<T>)>,
 ) {
     if !effects.is_empty() {
         for event in events.read() {
-            let Ok((effect, base_value, active_value)) = effects.get(event.element) else {
+            let Ok((effect, active_value)) = effects.get(event.element) else {
                 continue;
             };
-
-            let entity_ref = world.entity(event.element);
 
             commands
                 .entity(event.element)
                 .insert((
-                    Clicked::new(
-                        active_value
-                            .active_or_base(world, &entity_ref, base_value)
-                            .clone(),
-                    ),
+                    Clicked::new(active_value.clone()),
                     Transition::new(Clicked::new(effect.value.clone()), effect.in_duration),
                 ))
                 .remove::<AutoRemove<Clicked<T>>>();

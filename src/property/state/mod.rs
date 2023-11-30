@@ -9,6 +9,7 @@ use std::{
 use bevy::{
     ecs::{
         component::{ComponentId, Components},
+        query::{ReadOnlyWorldQuery, WorldQuery},
         world::{EntityMut, EntityRef},
     },
     prelude::{
@@ -175,6 +176,103 @@ impl<T: Component + Clone> Active<T> {
             }
             .map_unchanged(|x| x.deref_mut())
         }
+    }
+}
+
+pub struct CurrentlyActive<T: Component + Clone>(PhantomData<T>);
+
+unsafe impl<T: Component + Clone> ReadOnlyWorldQuery for &CurrentlyActive<T> {}
+
+unsafe impl<T: Component + Clone> WorldQuery for &CurrentlyActive<T> {
+    type Fetch<'w> = (&'w World, ComponentId);
+    type Item<'a> = &'a T;
+    type ReadOnly = Self;
+    type State = ComponentId;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
+
+    const IS_DENSE: bool = true;
+    const IS_ARCHETYPAL: bool = true;
+
+    unsafe fn init_fetch<'w>(
+        world: bevy::ecs::world::unsafe_world_cell::UnsafeWorldCell<'w>,
+        state: &Self::State,
+        _last_run: bevy::ecs::component::Tick,
+        _this_run: bevy::ecs::component::Tick,
+    ) -> Self::Fetch<'w> {
+        (world.world(), *state)
+    }
+
+    #[inline]
+    unsafe fn set_archetype<'w>(
+        _fetch: &mut Self::Fetch<'w>,
+        _state: &Self::State,
+        _archetype: &'w bevy::ecs::archetype::Archetype,
+        _table: &'w bevy::ecs::storage::Table,
+    ) {
+    }
+
+    #[inline]
+    unsafe fn set_table<'w>(
+        _fetch: &mut Self::Fetch<'w>,
+        _state: &Self::State,
+        _table: &'w bevy::ecs::storage::Table,
+    ) {
+    }
+
+    #[inline]
+    fn update_archetype_component_access(
+        _state: &Self::State,
+        _archetype: &bevy::ecs::archetype::Archetype,
+        access: &mut bevy::ecs::query::Access<bevy::ecs::archetype::ArchetypeComponentId>,
+    ) {
+        access.read_all();
+    }
+
+    unsafe fn fetch<'w>(
+        (world, base_component_id): &mut Self::Fetch<'w>,
+        entity: Entity,
+        _table_row: bevy::ecs::storage::TableRow,
+    ) -> Self::Item<'w> {
+        let base = world
+            .entity(entity)
+            .get::<T>()
+            .expect("Couldn't get component base value.");
+
+        let active = world.entity(entity).get::<Active<T>>();
+
+        if let Some(active_component_id) =
+            active.and_then(|active| active.component_ids.last().copied())
+        {
+            if active_component_id != *base_component_id {
+                if let Some(active_component) = world.entity(entity).get_by_id(active_component_id)
+                {
+                    return unsafe { &active_component.deref::<ComponentState<(), T>>().value };
+                }
+            }
+        }
+
+        base
+    }
+
+    fn update_component_access(
+        _state: &Self::State,
+        access: &mut bevy::ecs::query::FilteredAccess<ComponentId>,
+    ) {
+        access.read_all();
+    }
+
+    fn init_state(world: &mut World) -> Self::State {
+        world.init_component::<T>()
+    }
+
+    fn matches_component_set(
+        state: &Self::State,
+        set_contains_id: &impl Fn(ComponentId) -> bool,
+    ) -> bool {
+        set_contains_id(*state)
     }
 }
 

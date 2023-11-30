@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::{Active, ActiveOptionExt, AppComponentStateExt, ComponentState};
+use super::{Active, ActiveOptionExt, AppComponentStateExt, ComponentState, CurrentlyActive};
 
 pub struct UiHoverStatePlugin;
 
@@ -144,27 +144,20 @@ pub fn hover_effect_clear_system<T: Component + Clone>(
 }
 
 pub fn hover_effect_transition_in_system<T: PropertyTransition<T> + Component + Clone>(
-    world: &World,
     mut commands: Commands,
     mut events: EventReader<HoverEnterEvent>,
-    effects: Query<(&HoverEffectTransition<T>, &T, Option<&Active<T>>)>,
+    effects: Query<(&HoverEffectTransition<T>, &CurrentlyActive<T>)>,
 ) {
     if !effects.is_empty() {
         for event in events.read() {
-            let Ok((effect, base_value, active_value)) = effects.get(event.element) else {
+            let Ok((effect, active_value)) = effects.get(event.element) else {
                 continue;
             };
-
-            let entity_ref = world.entity(event.element);
 
             commands
                 .entity(event.element)
                 .insert((
-                    Hovered::new(
-                        active_value
-                            .active_or_base(world, &entity_ref, base_value)
-                            .clone(),
-                    ),
+                    Hovered::new(active_value.clone()),
                     Transition::new(Hovered::new(effect.value.clone()), effect.in_duration),
                 ))
                 .remove::<AutoRemove<Hovered<T>>>();

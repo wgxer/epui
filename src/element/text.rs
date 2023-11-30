@@ -15,7 +15,7 @@ use bevy::{
         render_resource::{CachedRenderPipelineId, MultisampleState, TextureFormat},
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     },
     utils::HashMap,
 };
@@ -24,11 +24,7 @@ use glyphon::{FontSystem, Metrics, SwashCache, TextArea, TextAtlas, TextBounds, 
 use crate::{
     camera::{PhysicalViewportSize, UiPhaseItem},
     prelude::{AutoZUpdate, ColoredElement, Position, Size},
-    property::{
-        state::{Active, ActiveOptionExt},
-        update::AutoVisibleRegionUpdate,
-        VisibleRegion, ZLevel,
-    },
+    property::{state::CurrentlyActive, update::AutoVisibleRegionUpdate, VisibleRegion, ZLevel},
 };
 
 #[derive(Component, Debug, Default, Clone, Hash, PartialEq, Eq, Reflect)]
@@ -175,24 +171,15 @@ impl DerefMut for ExtractedTexts {
 }
 
 fn extract_texts(
-    main_world: Res<MainWorld>,
     texts: Extract<
         Query<(
-            Entity,
-            &UiText,
-            &FontSize,
-            &Position,
-            &Size,
-            &VisibleRegion,
-            &ColoredElement,
-            Option<&ZLevel>,
-            Option<&Active<UiText>>,
-            Option<&Active<FontSize>>,
-            Option<&Active<Position>>,
-            Option<&Active<Size>>,
-            Option<&Active<VisibleRegion>>,
-            Option<&Active<ColoredElement>>,
-            Option<&Active<ZLevel>>,
+            &CurrentlyActive<UiText>,
+            &CurrentlyActive<FontSize>,
+            &CurrentlyActive<Position>,
+            &CurrentlyActive<Size>,
+            &CurrentlyActive<VisibleRegion>,
+            &CurrentlyActive<ColoredElement>,
+            Option<&CurrentlyActive<ZLevel>>,
         )>,
     >,
     mut extracted_texts: ResMut<ExtractedTexts>,
@@ -210,36 +197,8 @@ fn extract_texts(
         extracted_texts.shrink_to_fit();
     }
 
-    for (
-        entity,
-        base_text,
-        base_font_size,
-        base_position,
-        base_size,
-        base_visible_region,
-        base_colored_element,
-        base_z_level,
-        text,
-        font_size,
-        position,
-        size,
-        visible_region,
-        colored_element,
-        z_level,
-    ) in texts.iter()
+    for (text, font_size, position, size, visible_region, colored_element, z_level) in texts.iter()
     {
-        let entity_ref = main_world.entity(entity);
-
-        let (text, font_size, position, size, visible_region, colored_element, z_level) = (
-            text.active_or_base(&main_world, &entity_ref, base_text),
-            font_size.active_or_base(&main_world, &entity_ref, base_font_size),
-            position.active_or_base(&main_world, &entity_ref, base_position),
-            size.active_or_base(&main_world, &entity_ref, base_size),
-            visible_region.active_or_base(&main_world, &entity_ref, base_visible_region),
-            colored_element.active_or_base(&main_world, &entity_ref, base_colored_element),
-            z_level.active_or_base(&main_world, &entity_ref, base_z_level.unwrap_or(&ZLevel(0))),
-        );
-
         extracted_texts.push(TextInstance {
             text: text.clone(),
             font_size: font_size.clone(),
@@ -247,7 +206,7 @@ fn extract_texts(
             position: position.clone(),
             size: size.clone(),
 
-            z_level: z_level.clone(),
+            z_level: z_level.cloned().unwrap_or_default(),
             visible_region: visible_region.clone(),
 
             color: colored_element.clone(),
